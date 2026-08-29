@@ -31,7 +31,7 @@ import type { CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/doma
 import { latestOffers, rankOffers } from "@/lib/domain/policy";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 
-type Action = "scan" | "book" | "takeover" | "simulate-inbound" | "reset" | "save";
+type Action = "scan" | "delegate" | "book" | "takeover" | "simulate-inbound" | "reset" | "save";
 
 interface WhatsAppStatus {
   configured: boolean;
@@ -80,6 +80,26 @@ function currentOffer(snapshot: OperationSnapshot, carrierId: string): Offer | u
   return latestOffers(snapshot.offers).find((offer) => offer.carrierId === carrierId);
 }
 
+function briefingFromSnapshot(snapshot: OperationSnapshot) {
+  return {
+    reference: snapshot.operation.reference,
+    customer: snapshot.operation.customer,
+    containerReference: snapshot.operation.containerReference,
+    pickupLocation: snapshot.operation.pickupLocation,
+    deliveryLocation: snapshot.operation.deliveryLocation,
+    pickupDate: snapshot.operation.pickupDate,
+    pickupWindowStart: snapshot.operation.pickupWindowStart,
+    pickupWindowEnd: snapshot.operation.pickupWindowEnd,
+    targetRate: snapshot.mandate.targetRate,
+    maximumRate: snapshot.mandate.maximumRate,
+    negotiateRate: snapshot.mandate.negotiateRate,
+    changePickupDay: snapshot.mandate.changePickupDay,
+    acceptAccessorials: snapshot.mandate.acceptAccessorials,
+    maximumCounters: snapshot.mandate.maximumCounters,
+    carriers: snapshot.carriers.map(({ id, name, dispatcher, phoneE164 }) => ({ id, name, dispatcher, phoneE164 })),
+  };
+}
+
 export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnapshot }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -87,15 +107,9 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
   const [whatsapp, setWhatsApp] = useState<WhatsAppStatus | null>(null);
-  const [form, setForm] = useState({
-    pickupDate: snapshot.operation.pickupDate,
-    pickupWindowStart: snapshot.operation.pickupWindowStart,
-    pickupWindowEnd: snapshot.operation.pickupWindowEnd,
-    targetRate: snapshot.mandate.targetRate,
-    maximumRate: snapshot.mandate.maximumRate,
-    carrierPhones: Object.fromEntries(snapshot.carriers.map((carrier) => [carrier.id, carrier.phoneE164])),
-  });
+  const [form, setForm] = useState(() => briefingFromSnapshot(initialSnapshot));
   const evidenceAudio = useRef<HTMLAudioElement>(null);
+  const briefingForm = useRef<HTMLFormElement>(null);
   const ranked = useMemo(() => rankOffers(snapshot), [snapshot]);
   const winningOffer = ranked[0];
   const winningCarrier = snapshot.carriers.find((carrier) => carrier.id === winningOffer?.carrierId);
@@ -110,15 +124,21 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const decisions = snapshot.decisions ?? [];
 
   useEffect(() => {
+    if (editing || !hasQuoteCalls) return;
+    let cancelled = false;
     const timer = window.setInterval(async () => {
       const response = await fetch(`/api/operations/${snapshot.operation.id}`, { cache: "no-store" });
-      if (response.ok) {
+      if (!cancelled && response.ok) {
         const body = await response.json();
         setSnapshot(body.data);
+        setForm(briefingFromSnapshot(body.data));
       }
     }, 2000);
-    return () => window.clearInterval(timer);
-  }, [snapshot.operation.id]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [editing, hasQuoteCalls, snapshot.operation.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,9 +177,104 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     if (!response.ok) setError(body.error ?? "Action failed");
     else {
       setSnapshot(body.data);
+      if (action === "reset") setForm(briefingFromSnapshot(body.data));
       if (action === "save") setEditing(false);
     }
     setBusy(null);
+  }
+
+  function briefingPayload() {
+    if (!briefingForm.current) return form;
+    const field = (name: string) =>
+      briefingForm.current?.querySelector<HTMLInputElement>(`[name="${name}"]`) ?? null;
+    const text = (name: string) => field(name)?.value.trim() ?? "";
+    const number = (name: string) => Number(field(name)?.value);
+    const checked = (name: string) => field(name)?.checked ?? false;
+    return {
+      reference: text("reference"),
+      customer: text("customer"),
+      containerReference: text("containerReference"),
+      pickupLocation: text("pickupLocation"),
+      deliveryLocation: text("deliveryLocation"),
+      pickupDate: text("pickupDate"),
+      pickupWindowStart: text("pickupWindowStart"),
+      pickupWindowEnd: text("pickupWindowEnd"),
+      targetRate: number("targetRate"),
+      maximumRate: number("maximumRate"),
+      negotiateRate: checked("negotiateRate"),
+      changePickupDay: checked("changePickupDay"),
+      acceptAccessorials: checked("acceptAccessorials"),
+      maximumCounters: number("maximumCounters"),
+      carriers: form.carriers.map((carrier, index) => ({
+        id: carrier.id,
+        name: text(`carrierName.${index}`),
+        dispatcher: text(`carrierDispatcher.${index}`),
+        phoneE164: text(`carrierPhone.${index}`),
+      })),
+    };
+  }
+
+  function validateBriefing(input: ReturnType<typeof briefingFromSnapshot>) {
+    if (
+      !input.reference.trim() ||
+      !input.customer.trim() ||
+      !input.containerReference.trim() ||
+      !input.pickupLocation.trim() ||
+      !input.deliveryLocation.trim()
+    ) return "Complete the operation, customer and route fields.";
+    if (!input.pickupDate || input.pickupWindowStart >= input.pickupWindowEnd) return "Choose a valid pickup date and time window.";
+    if (input.targetRate <= 0 || input.maximumRate <= 0 || input.targetRate > input.maximumRate) return "Target rate must be positive and no higher than the hard ceiling.";
+    if (input.carriers.some((carrier) => !carrier.name.trim() || !carrier.dispatcher.trim())) return "Complete every carrier and dispatcher name.";
+    if (input.carriers.some((carrier) => !/^\+[1-9]\d{7,14}$/.test(carrier.phoneE164))) return "Use E.164 phone numbers, including the leading + and country code.";
+    return "";
+  }
+
+  async function saveBriefing(startCalls = false) {
+    const payload = briefingPayload();
+    const validationError = validateBriefing(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setBusy(startCalls ? "delegate" : "save");
+    setError("");
+    try {
+      const saveResponse = await fetch(`/api/operations/${snapshot.operation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const saved = await saveResponse.json();
+      if (!saveResponse.ok) throw new Error(saved.error ?? "Briefing could not be saved");
+      setSnapshot(saved.data);
+      if (!startCalls) {
+        setEditing(false);
+        return;
+      }
+
+      const scanResponse = await fetch(`/api/operations/${snapshot.operation.id}/scan`, { method: "POST" });
+      const scanned = await scanResponse.json();
+      if (!scanResponse.ok) throw new Error(scanned.error ?? "Calls could not be started");
+      setSnapshot(scanned.data);
+      setEditing(false);
+    } catch (errorValue) {
+      setError(errorValue instanceof Error ? errorValue.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function updateCarrier(index: number, field: "name" | "dispatcher" | "phoneE164", value: string) {
+    setForm((current) => ({
+      ...current,
+      carriers: current.carriers.map((carrier, carrierIndex) =>
+        carrierIndex === index ? { ...carrier, [field]: value } : carrier,
+      ),
+    }));
+  }
+
+  function updateBriefing<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
   async function logout() {
@@ -232,38 +347,64 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
       ) : null}
 
       <div className="dashboard-grid">
-        <aside className="mandate-panel">
+        <form className="mandate-panel briefing-panel" ref={briefingForm} onSubmit={(event) => event.preventDefault()}>
           <div className="section-heading">
-            <div><span className="section-number">A</span><h2>Human mandate</h2></div>
-            <button className="text-button" onClick={() => setEditing((value) => !value)}>{editing ? "Cancel" : "Edit"}</button>
+            <div><span className="section-number">A</span><h2>Operation briefing</h2></div>
+            <button type="button" className="text-button" disabled={busy !== null} onClick={() => {
+              if (editing) setForm(briefingFromSnapshot(snapshot));
+              setEditing((value) => !value);
+            }}>{editing ? "Cancel" : "Edit briefing"}</button>
           </div>
           <div className="mandate-lock"><ShieldCheck size={19} /><div><strong>System authority</strong><span>Phone claims cannot expand it</span></div></div>
 
+          <div className="briefing-group">
+            <span className="micro-label">Operation</span>
+            <div className="field-grid two-columns">
+              <label><span>Reference</span><input name="reference" disabled={!editing} value={form.reference} onChange={(e) => updateBriefing("reference", e.target.value)} /></label>
+              <label><span>Container / load</span><input name="containerReference" disabled={!editing} value={form.containerReference} onChange={(e) => updateBriefing("containerReference", e.target.value)} /></label>
+            </div>
+            <label className="wide-field"><span>Customer</span><input name="customer" disabled={!editing} value={form.customer} onChange={(e) => updateBriefing("customer", e.target.value)} /></label>
+          </div>
+
+          <div className="briefing-group">
+            <span className="micro-label">Route</span>
+            <label className="wide-field"><span>Pickup location</span><input name="pickupLocation" disabled={!editing} value={form.pickupLocation} onChange={(e) => updateBriefing("pickupLocation", e.target.value)} /></label>
+            <label className="wide-field"><span>Delivery location</span><input name="deliveryLocation" disabled={!editing} value={form.deliveryLocation} onChange={(e) => updateBriefing("deliveryLocation", e.target.value)} /></label>
+          </div>
+
+          <div className="briefing-group">
+            <span className="micro-label">Pickup and commercial mandate</span>
           <div className="field-grid">
-            <label><span>Pickup day</span><input type="date" disabled={!editing} value={form.pickupDate} onChange={(e) => setForm({ ...form, pickupDate: e.target.value })} /></label>
-            <label><span>Window from</span><input type="time" disabled={!editing} value={form.pickupWindowStart} onChange={(e) => setForm({ ...form, pickupWindowStart: e.target.value })} /></label>
-            <label><span>Window to</span><input type="time" disabled={!editing} value={form.pickupWindowEnd} onChange={(e) => setForm({ ...form, pickupWindowEnd: e.target.value })} /></label>
+            <label><span>Pickup day</span><input name="pickupDate" type="date" disabled={!editing} value={form.pickupDate} onChange={(e) => updateBriefing("pickupDate", e.target.value)} /></label>
+            <label><span>Window from</span><input name="pickupWindowStart" type="time" disabled={!editing} value={form.pickupWindowStart} onChange={(e) => updateBriefing("pickupWindowStart", e.target.value)} /></label>
+            <label><span>Window to</span><input name="pickupWindowEnd" type="time" disabled={!editing} value={form.pickupWindowEnd} onChange={(e) => updateBriefing("pickupWindowEnd", e.target.value)} /></label>
           </div>
           <div className="rate-block">
-            <label><span>Target rate</span><div className="money-input"><small>MXN</small><input type="number" disabled={!editing} value={form.targetRate} onChange={(e) => setForm({ ...form, targetRate: Number(e.target.value) })} /></div></label>
+            <label><span>Target rate</span><div className="money-input"><small>MXN</small><input name="targetRate" type="number" disabled={!editing} value={form.targetRate} onChange={(e) => updateBriefing("targetRate", Number(e.target.value))} /></div></label>
             <ArrowDownRight size={18} />
-            <label><span>Hard ceiling</span><div className="money-input limit"><small>MXN</small><input type="number" disabled={!editing} value={form.maximumRate} onChange={(e) => setForm({ ...form, maximumRate: Number(e.target.value) })} /></div></label>
+            <label><span>Hard ceiling</span><div className="money-input limit"><small>MXN</small><input name="maximumRate" type="number" disabled={!editing} value={form.maximumRate} onChange={(e) => updateBriefing("maximumRate", Number(e.target.value))} /></div></label>
+          </div>
           </div>
           <div className="permission-list">
-            <div><Check size={14} /><span>Negotiate rate</span><strong>YES</strong></div>
-            <div><X size={14} /><span>Change pickup day</span><strong>NO</strong></div>
-            <div><X size={14} /><span>Accept accessorials</span><strong>NO</strong></div>
-            <div><Zap size={14} /><span>Counter offers</span><strong>{snapshot.mandate.maximumCounters} MAX</strong></div>
+            <label><input name="negotiateRate" type="checkbox" disabled={!editing} checked={form.negotiateRate} onChange={(e) => updateBriefing("negotiateRate", e.target.checked)} /><span>Negotiate rate</span><strong>{form.negotiateRate ? "YES" : "NO"}</strong></label>
+            <label><input name="changePickupDay" type="checkbox" disabled={!editing} checked={form.changePickupDay} onChange={(e) => updateBriefing("changePickupDay", e.target.checked)} /><span>Change pickup day</span><strong>{form.changePickupDay ? "YES" : "NO"}</strong></label>
+            <label><input name="acceptAccessorials" type="checkbox" disabled={!editing} checked={form.acceptAccessorials} onChange={(e) => updateBriefing("acceptAccessorials", e.target.checked)} /><span>Accept accessorials</span><strong>{form.acceptAccessorials ? "YES" : "NO"}</strong></label>
+            <label><Zap size={14} /><span>Counter offers</span><input name="maximumCounters" className="counter-input" type="number" min={0} max={5} disabled={!editing} value={form.maximumCounters} onChange={(e) => updateBriefing("maximumCounters", Number(e.target.value))} /></label>
           </div>
 
           <div className="carrier-config">
-            <span className="micro-label">Consented test phones</span>
-            {snapshot.carriers.map((carrier) => (
-              <label key={carrier.id}><span>{carrier.name}</span><input disabled={!editing} value={form.carrierPhones[carrier.id]} onChange={(e) => setForm({ ...form, carrierPhones: { ...form.carrierPhones, [carrier.id]: e.target.value } })} /></label>
+            <span className="micro-label">Consented carriers</span>
+            {form.carriers.map((carrier, index) => (
+              <div className="carrier-config-row" key={carrier.id}>
+                <span className="carrier-config-index">0{index + 1}</span>
+                <label><span>Carrier</span><input name={`carrierName.${index}`} disabled={!editing} value={carrier.name} onChange={(e) => updateCarrier(index, "name", e.target.value)} /></label>
+                <label><span>Dispatcher</span><input name={`carrierDispatcher.${index}`} disabled={!editing} value={carrier.dispatcher} onChange={(e) => updateCarrier(index, "dispatcher", e.target.value)} /></label>
+                <label className="carrier-phone"><span>WhatsApp · E.164</span><input name={`carrierPhone.${index}`} disabled={!editing} value={carrier.phoneE164} onChange={(e) => updateCarrier(index, "phoneE164", e.target.value)} /></label>
+              </div>
             ))}
           </div>
-          {editing ? <button className="secondary-button full-button" onClick={() => run("save", "PATCH", form)} disabled={busy === "save"}><Save size={15} />{busy === "save" ? "Saving…" : "Save mandate"}</button> : null}
-        </aside>
+          {editing ? <button type="button" className="secondary-button full-button" onClick={() => saveBriefing(false)} disabled={busy === "save"}><Save size={15} />{busy === "save" ? "Saving…" : "Save briefing"}</button> : null}
+        </form>
 
         <section className="main-stage">
           <div className="outcome-header">
@@ -287,7 +428,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
                 <button className="secondary-button" onClick={() => run("simulate-inbound")} disabled={busy !== null}><AlertTriangle size={15} />Inbound exception</button>
               ) : null}
               {!hasQuoteCalls ? (
-                <button className="primary-button" data-testid="start-scan" onClick={() => run("scan")} disabled={busy !== null}><PhoneCall size={17} />{busy === "scan" ? "Starting calls…" : "Start market scan"}</button>
+                <button className="primary-button" data-testid="start-scan" onClick={() => saveBriefing(true)} disabled={busy !== null}><PhoneCall size={17} />{busy === "delegate" ? "Saving & starting calls…" : "Delegate operation"}</button>
               ) : winningOffer && !snapshot.commitment ? (
                 <button className="primary-button" data-testid="book-winner" onClick={() => run("book")} disabled={busy !== null}><CheckCircle2 size={17} />{busy === "book" ? "Calling winner…" : "Book winner"}</button>
               ) : null}

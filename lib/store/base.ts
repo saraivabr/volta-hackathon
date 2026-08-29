@@ -60,13 +60,18 @@ export abstract class BaseSnapshotStore implements VoltaStore {
   ) {
     return this.mutate((snapshot) => {
       if (snapshot.operation.id !== operationId) throw new Error("Operation not found");
-      const { mandate, carrierPhones, ...operation } = input;
+      const { mandate, carriers, ...operation } = input;
       snapshot.operation = { ...snapshot.operation, ...operation, id: snapshot.operation.id };
       snapshot.mandate = { ...snapshot.mandate, ...mandate, operationId };
-      if (carrierPhones) {
+      if (carriers) {
+        const updates = new Map(carriers.map((carrier) => [carrier.id, carrier]));
+        if (updates.size !== snapshot.carriers.length || snapshot.carriers.some((carrier) => !updates.has(carrier.id))) {
+          throw new Error("Every configured carrier must be provided");
+        }
         snapshot.carriers = snapshot.carriers.map((carrier) => ({
           ...carrier,
-          phoneE164: carrierPhones[carrier.id] ?? carrier.phoneE164,
+          ...updates.get(carrier.id),
+          operationId,
         }));
       }
       this.pushEvent(snapshot, {

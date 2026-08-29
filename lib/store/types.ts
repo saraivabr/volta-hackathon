@@ -2,6 +2,7 @@ import type {
   CallAttempt,
   CallMode,
   CallStatus,
+  Carrier,
   Commitment,
   DecisionInput,
   Escalation,
@@ -55,7 +56,10 @@ export interface VoltaStore {
   getSnapshot(operationId?: string): Promise<OperationSnapshot>;
   updateConfiguration(
     operationId: string,
-    input: Partial<Operation> & { mandate?: Partial<Mandate>; carrierPhones?: Record<string, string> },
+    input: Partial<Operation> & {
+      mandate?: Partial<Mandate>;
+      carriers?: Array<Pick<Carrier, "id" | "name" | "dispatcher" | "phoneE164">>;
+    },
   ): Promise<OperationSnapshot>;
   createCall(input: CreateCallInput): Promise<CallAttempt>;
   updateCall(callId: string, input: UpdateCallInput): Promise<CallAttempt>;

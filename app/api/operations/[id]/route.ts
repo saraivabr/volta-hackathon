@@ -4,12 +4,38 @@ import { apiError, ok } from "@/lib/server/http";
 import { requireOperator } from "@/lib/server/auth";
 
 const patchSchema = z.object({
-  pickupDate: z.string().optional(),
+  reference: z.string().trim().min(2).max(40).optional(),
+  customer: z.string().trim().min(2).max(120).optional(),
+  containerReference: z.string().trim().min(2).max(60).optional(),
+  pickupLocation: z.string().trim().min(2).max(160).optional(),
+  deliveryLocation: z.string().trim().min(2).max(160).optional(),
+  pickupDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   pickupWindowStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   pickupWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   targetRate: z.number().positive().optional(),
   maximumRate: z.number().positive().optional(),
-  carrierPhones: z.record(z.string(), z.string().regex(/^\+[1-9]\d{7,14}$/)).optional(),
+  negotiateRate: z.boolean().optional(),
+  changePickupDay: z.boolean().optional(),
+  acceptAccessorials: z.boolean().optional(),
+  maximumCounters: z.number().int().min(0).max(5).optional(),
+  carriers: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        name: z.string().trim().min(2).max(100),
+        dispatcher: z.string().trim().min(2).max(100),
+        phoneE164: z.string().regex(/^\+[1-9]\d{7,14}$/),
+      }),
+    )
+    .length(3)
+    .optional(),
+}).superRefine((input, context) => {
+  if (input.targetRate !== undefined && input.maximumRate !== undefined && input.targetRate > input.maximumRate) {
+    context.addIssue({ code: "custom", path: ["targetRate"], message: "Target rate cannot exceed the hard ceiling" });
+  }
+  if (input.pickupWindowStart && input.pickupWindowEnd && input.pickupWindowStart >= input.pickupWindowEnd) {
+    context.addIssue({ code: "custom", path: ["pickupWindowStart"], message: "Pickup window start must be before its end" });
+  }
 });
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -27,14 +53,28 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     await requireOperator();
     const { id } = await context.params;
     const input = patchSchema.parse(await request.json());
-    const { targetRate, maximumRate, ...operation } = input;
+    const {
+      targetRate,
+      maximumRate,
+      negotiateRate,
+      changePickupDay,
+      acceptAccessorials,
+      maximumCounters,
+      carriers,
+      ...operation
+    } = input;
     return ok(
       await getStore().updateConfiguration(id, {
         ...operation,
         mandate: {
           ...(targetRate !== undefined ? { targetRate } : {}),
           ...(maximumRate !== undefined ? { maximumRate } : {}),
+          ...(negotiateRate !== undefined ? { negotiateRate } : {}),
+          ...(changePickupDay !== undefined ? { changePickupDay } : {}),
+          ...(acceptAccessorials !== undefined ? { acceptAccessorials } : {}),
+          ...(maximumCounters !== undefined ? { maximumCounters } : {}),
         },
+        ...(carriers ? { carriers } : {}),
       }),
     );
   } catch (error) {

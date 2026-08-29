@@ -9,6 +9,40 @@ describe("Volta store", () => {
     await store.getSnapshot();
   });
 
+  it("persists a complete operator briefing before calls begin", async () => {
+    const current = await store.getSnapshot();
+    await store.updateConfiguration("op-2041", {
+      reference: "OP-9001",
+      customer: "Acme Textiles",
+      containerReference: "CONT-7788",
+      pickupLocation: "Veracruz Port",
+      deliveryLocation: "Mexico City",
+      pickupDate: "2026-09-10",
+      pickupWindowStart: "09:00",
+      pickupWindowEnd: "14:00",
+      mandate: {
+        targetRate: 7600,
+        maximumRate: 8100,
+        maximumCounters: 1,
+      },
+      carriers: current.carriers.map((carrier, index) => ({
+        id: carrier.id,
+        name: `Carrier ${index + 1}`,
+        dispatcher: `Dispatcher ${index + 1}`,
+        phoneE164: `+52550000010${index + 1}`,
+      })),
+    });
+    const snapshot = await store.getSnapshot();
+    expect(snapshot.operation).toMatchObject({
+      reference: "OP-9001",
+      customer: "Acme Textiles",
+      pickupLocation: "Veracruz Port",
+      deliveryLocation: "Mexico City",
+    });
+    expect(snapshot.mandate).toMatchObject({ targetRate: 7600, maximumRate: 8100, maximumCounters: 1 });
+    expect(snapshot.carriers[0]).toMatchObject({ name: "Carrier 1", dispatcher: "Dispatcher 1" });
+  });
+
   it("supersedes corrected offers and blocks the corrected out-of-mandate amount", async () => {
     const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "QUOTE" });
     const first = await store.recordOffer({
