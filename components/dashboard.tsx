@@ -51,6 +51,7 @@ const shortTime = new Intl.DateTimeFormat("en-US", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
+  timeZone: "America/Sao_Paulo",
 });
 
 function statusTone(status: string) {
