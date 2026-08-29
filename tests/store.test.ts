@@ -1,0 +1,97 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import { MemoryVoltaStore } from "@/lib/store/memory";
+
+describe("Volta store", () => {
+  const store = new MemoryVoltaStore();
+
+  beforeEach(async () => {
+    globalThis.__voltaSnapshot = undefined;
+    await store.getSnapshot();
+  });
+
+  it("supersedes corrected offers and blocks the corrected out-of-mandate amount", async () => {
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "QUOTE" });
+    const first = await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 8500,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "10:00",
+    });
+    const correction = await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 9300,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "10:00",
+    });
+    const snapshot = await store.getSnapshot();
+    expect(snapshot.offers.find((offer) => offer.id === first.id)?.supersededAt).not.toBeNull();
+    expect(correction.revision).toBe(2);
+    expect(correction.eligible).toBe(false);
+    expect(correction.violations).toContain("rate_above_mandate");
+    expect(snapshot.decisions.some((decision) =>
+      decision.relatedOfferId === correction.id &&
+      decision.outcome === "BLOCK" &&
+      decision.reasonCodes.includes("rate_above_mandate")
+    )).toBe(true);
+  });
+
+  it("stores final transcript turns idempotently and links them to policy decisions", async () => {
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-azul", mode: "QUOTE" });
+    await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-azul",
+      callId: call.id,
+      amount: 8900,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "11:00",
+    });
+    const input = {
+      operationId: "op-2041",
+      callId: call.id,
+      speaker: "COUNTERPARTY" as const,
+      providerItemId: "item-counterparty-1",
+      text: "Podemos recoger el jueves a las once por ocho mil novecientos pesos.",
+    };
+    const first = await store.recordTranscript(input);
+    const duplicate = await store.recordTranscript(input);
+    const snapshot = await store.getSnapshot();
+    expect(duplicate.id).toBe(first.id);
+    expect(snapshot.transcripts.filter((segment) => segment.providerItemId === input.providerItemId)).toHaveLength(1);
+    expect(snapshot.decisions.some((decision) => decision.transcriptSegmentIds.includes(first.id))).toBe(true);
+  });
+
+  it("does not become committed before recap and evidence", async () => {
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "BOOKING" });
+    const offer = await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 8500,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "10:00",
+    });
+    const staged = await store.stageBooking("op-2041", offer.id, call.id);
+    await store.confirmBooking(staged.commitment.id, staged.confirmationToken);
+    expect((await store.getSnapshot()).commitment?.status).toBe("VERBALLY_CONFIRMED");
+    await store.markRecapSent(staged.commitment.id, "SM_TEST");
+    expect((await store.getSnapshot()).commitment?.status).toBe("RECAP_SENT");
+    await store.linkEvidence(staged.commitment.id, {
+      callId: call.id,
+      recordingUrl: "/test.wav",
+      storagePath: null,
+      speaker: "dispatcher",
+      segmentText: "Sí, confirmo.",
+      startSeconds: 4,
+      endSeconds: 6,
+    });
+    expect((await store.getSnapshot()).commitment?.status).toBe("COMMITTED");
+  });
+});

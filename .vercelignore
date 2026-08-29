@@ -1,0 +1,8 @@
+Sem Título 14.txt
+pico.save
+.playwright-cli/
+output/
+test-results/
+playwright-report/
+coverage/
+

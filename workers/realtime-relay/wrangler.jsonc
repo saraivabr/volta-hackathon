@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "volta-realtime-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "secrets": {
+    "required": ["RELAY_SHARED_SECRET", "TWILIO_AUTH_TOKEN"]
+  },
+  "vars": {
+    "VOLTA_TOKEN_URL": "https://volta-hackathon.vercel.app/api/openai/realtime/token",
+    "VOLTA_EVENT_URL": "https://volta-hackathon.vercel.app/api/openai/realtime/relay-events",
+    "OPENAI_MODEL": "gpt-realtime-2.1"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

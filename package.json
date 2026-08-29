@@ -1,0 +1,53 @@
+{
+  "name": "volta-operations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "worker:types": "wrangler types workers/realtime-relay/worker-configuration.d.ts --config workers/realtime-relay/wrangler.jsonc",
+    "worker:typecheck": "tsc -p workers/realtime-relay/tsconfig.json --noEmit",
+    "worker:deploy": "wrangler deploy --config workers/realtime-relay/wrangler.jsonc",
+    "wacalls:test": "cd services/wacalls && go test ./...",
+    "wacalls:build": "cd services/wacalls && go build -o ../../output/volta-wacalls ./cmd/server",
+    "wacalls:run": "cd services/wacalls && go run ./cmd/server -addr :8081 -db ../../output/wacalls.db -static ''",
+    "check": "pnpm lint && pnpm typecheck && pnpm worker:typecheck && pnpm wacalls:test && pnpm test && pnpm build"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.4",
+    "jose": "6.2.10",
+    "lucide-react": "1.37.0",
+    "next": "16.3.3",
+    "openai": "7.8.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1",
+    "twilio": "6.1.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260829.1",
+    "@playwright/test": "1.62.1",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "^22.19.0",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.3.3",
+    "jsdom": "^27.2.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.127.1"
+  }
+}
