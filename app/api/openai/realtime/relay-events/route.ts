@@ -2,6 +2,7 @@ import { z } from "zod";
 import { authorizeRelayRequest } from "@/lib/server/relay-auth";
 import { getStore } from "@/lib/store";
 import { sendCommitmentRecap } from "@/lib/services/verification";
+import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,19 +27,6 @@ const bodySchema = z.object({
   itemId: z.string().max(160).optional(),
   transcript: z.string().trim().min(1).max(8_000).optional(),
 });
-
-const LEGACY_TRANSCRIPTION_CONTEXT =
-  "llamada logística en español sobre tarifas mxn fechas horarios manzanillo guadalajara transportistas y confirmación de recolección";
-
-function isTranscriptionContextEcho(text: string) {
-  const normalized = text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-  return normalized === LEGACY_TRANSCRIPTION_CONTEXT.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
 
 export async function POST(request: Request) {
   try {

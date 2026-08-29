@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/domain/types";
 import { latestOffers, rankOffers } from "@/lib/domain/policy";
+import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 
 type Action = "scan" | "book" | "takeover" | "simulate-inbound" | "reset" | "save";
 
@@ -99,7 +100,10 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const winningCarrier = snapshot.carriers.find((carrier) => carrier.id === winningOffer?.carrierId);
   const hasQuoteCalls = snapshot.calls.some((call) => call.mode === "QUOTE");
   const transcripts = useMemo(
-    () => [...(snapshot.transcripts ?? [])].sort((left, right) => left.occurredAt.localeCompare(right.occurredAt)),
+    () =>
+      [...(snapshot.transcripts ?? [])]
+        .filter((segment) => !isTranscriptionContextEcho(segment.text))
+        .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt)),
     [snapshot.transcripts],
   );
   const decisions = snapshot.decisions ?? [];
