@@ -54,9 +54,6 @@ export function buildRealtimeSession(
         noise_reduction: { type: "near_field" },
         transcription: {
           model: process.env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe",
-          language: "es",
-          prompt:
-            "Llamada logística en español sobre tarifas MXN, fechas, horarios, Manzanillo, Guadalajara, transportistas y confirmación de recolección.",
         },
         turn_detection: {
           type: "server_vad",
