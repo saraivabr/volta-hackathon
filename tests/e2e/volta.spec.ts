@@ -6,7 +6,7 @@ test("operator completes the verified demo cycle", async ({ page }) => {
   await page.getByRole("button", { name: "Enter control room" }).click();
   await Promise.all([
     page.waitForResponse((response) => response.url().endsWith("/api/operations/op-2041/reset") && response.ok()),
-    page.getByRole("button", { name: "Reset demo" }).click(),
+    page.getByRole("button", { name: "New operation" }).click(),
   ]);
   await expect(page.getByRole("heading", { name: "Ready to delegate" })).toBeVisible();
 

@@ -423,7 +423,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
               )}
             </div>
             <div className="outcome-actions">
-              <button className="secondary-button" onClick={() => run("reset")} disabled={busy !== null}><RefreshCw size={15} />Reset demo</button>
+              <button className="secondary-button" onClick={() => run("reset")} disabled={busy !== null}><RefreshCw size={15} />{busy === "reset" ? "Preparing…" : "New operation"}</button>
               {snapshot.commitment?.status === "COMMITTED" && !snapshot.escalation ? (
                 <button className="secondary-button" onClick={() => run("simulate-inbound")} disabled={busy !== null}><AlertTriangle size={15} />Inbound exception</button>
               ) : null}
