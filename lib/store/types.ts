@@ -59,7 +59,7 @@ export interface VoltaStore {
     operationId: string,
     input: Partial<Operation> & {
       mandate?: Partial<Mandate>;
-      carriers?: Array<Pick<Carrier, "id" | "name" | "dispatcher" | "phoneE164">>;
+      carriers?: Array<Pick<Carrier, "id" | "name" | "dispatcher" | "phoneE164"> & { email?: string | null }>;
     },
   ): Promise<OperationSnapshot>;
   createCall(input: CreateCallInput): Promise<CallAttempt>;

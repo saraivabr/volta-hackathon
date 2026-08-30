@@ -15,6 +15,7 @@ export function createSeedSnapshot(): OperationSnapshot {
       pickupDate: "2026-09-03",
       pickupWindowStart: "08:00",
       pickupWindowEnd: "16:00",
+      handoffPhoneE164: null,
       status: "DRAFT",
       createdAt: now,
       updatedAt: now,
@@ -36,6 +37,7 @@ export function createSeedSnapshot(): OperationSnapshot {
         name: "Azul Cargo",
         dispatcher: "María Torres",
         phoneE164: "+525500000101",
+        email: null,
       },
       {
         id: "carrier-rutapac",
@@ -43,6 +45,7 @@ export function createSeedSnapshot(): OperationSnapshot {
         name: "RutaPac",
         dispatcher: "Carlos Medina",
         phoneE164: "+525500000102",
+        email: null,
       },
       {
         id: "carrier-manzanillo",
@@ -50,6 +53,7 @@ export function createSeedSnapshot(): OperationSnapshot {
         name: "Manzanillo Express",
         dispatcher: "Juan Ríos",
         phoneE164: "+525500000103",
+        email: null,
       },
     ],
     calls: [],

@@ -5,9 +5,41 @@ import { isTwilioConfigured, twilioClient } from "@/lib/providers/twilio";
 import { publicBaseUrl } from "@/lib/server/secrets";
 import { sendWhatsAppText } from "@/lib/providers/wacalls";
 import { sendTelnyxSms } from "@/lib/providers/telnyx";
+import { isEmailConfigured, sendRecapEmail } from "@/lib/providers/email";
 import { voiceTransport } from "@/lib/providers/voice";
 import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
 import { downloadRecording } from "@/lib/server/recording-storage";
+
+/** Delivers the recap over every written channel that is configured. */
+async function deliverTextRecap(phone: string, body: string) {
+  // A simulated run must not message a real handset. The seed carries
+  // placeholder numbers, and this used to be checked only on the Twilio branch.
+  if (process.env.VOLTA_DEMO_MODE === "true") {
+    return { channel: "simulated", reference: "SM_SIMULATED_NO_DELIVERY" };
+  }
+  switch (voiceTransport()) {
+    case "whatsapp": {
+      const { messageId } = await sendWhatsAppText(phone, body);
+      return { channel: "WhatsApp", reference: `WA_${messageId}` };
+    }
+    case "telnyx": {
+      const { messageId } = await sendTelnyxSms(phone, body);
+      return { channel: "SMS", reference: `TX_${messageId}` };
+    }
+    default: {
+      if (!isTwilioConfigured()) {
+        return { channel: "simulated", reference: "SM_SIMULATED_NO_DELIVERY" };
+      }
+      const message = await twilioClient().messages.create({
+        to: phone,
+        from: process.env.TWILIO_PHONE_NUMBER!,
+        body,
+        statusCallback: `${publicBaseUrl()}/api/twilio/messages?commitmentId=${phone}`,
+      });
+      return { channel: "SMS", reference: `SM_${message.sid}` };
+    }
+  }
+}
 
 export async function sendCommitmentRecap(callId: string) {
   const store = getStore();
@@ -19,53 +51,70 @@ export async function sendCommitmentRecap(callId: string) {
   const carrier = snapshot.carriers.find((item) => item.id === commitment.carrierId);
   if (!carrier) throw new Error("Commitment carrier not found");
 
-  const recapBody = `${commitment.recapText} Responde CORRECCIÓN si algún dato no coincide.`;
+  const body = `${commitment.recapText} Responde CORRECCIÓN si algún dato no coincide.`;
+  const delivered: string[] = [];
+  const failed: string[] = [];
 
-  if (voiceTransport() === "whatsapp") {
-    const message = await sendWhatsAppText(carrier.phoneE164, recapBody);
-    await store.markRecapSent(commitment.id, `WA_${message.messageId}`);
+  // Both channels are attempted. One landing is enough to hold the record, and
+  // a channel that fails says so in the ledger instead of disappearing.
+  try {
+    const text = await deliverTextRecap(carrier.phoneE164, body);
+    delivered.push(text.reference);
     await store.addEvent({
       operationId: commitment.operationId,
       callId,
       type: "recap.sent",
       severity: "SUCCESS",
-      summary: "Written recap sent by WhatsApp",
-      payload: { messageId: message.messageId },
+      summary: `Written recap sent by ${text.channel}`,
+      payload: { reference: text.reference },
     });
-    return commitment;
+  } catch (error) {
+    failed.push(`text: ${String(error)}`);
   }
 
-  if (voiceTransport() === "telnyx") {
-    const message = await sendTelnyxSms(carrier.phoneE164, recapBody);
-    await store.markRecapSent(commitment.id, `TX_${message.messageId}`);
+  if (carrier.email && isEmailConfigured()) {
+    try {
+      const { messageId } = await sendRecapEmail(
+        carrier.email,
+        `${snapshot.operation.reference} · confirmación de recolección`,
+        body,
+      );
+      delivered.push(`EM_${messageId}`);
+      await store.addEvent({
+        operationId: commitment.operationId,
+        callId,
+        type: "recap.sent",
+        severity: "SUCCESS",
+        summary: `Written recap emailed to ${carrier.email}`,
+        payload: { reference: messageId },
+      });
+    } catch (error) {
+      failed.push(`email: ${String(error)}`);
+    }
+  }
+
+  if (!delivered.length) {
     await store.addEvent({
       operationId: commitment.operationId,
       callId,
-      type: "recap.sent",
-      severity: "SUCCESS",
-      summary: "Written recap sent by SMS",
-      payload: { messageId: message.messageId },
+      type: "recap.failed",
+      severity: "DANGER",
+      summary: "No written recap could be delivered; the commitment cannot advance",
+      payload: { failed },
     });
-    return commitment;
+    return null;
   }
-
-  if (!isTwilioConfigured() || process.env.VOLTA_DEMO_MODE === "true") {
-    return store.markRecapSent(commitment.id, "SM_DEMO_VERIFIED");
+  if (failed.length) {
+    await store.addEvent({
+      operationId: commitment.operationId,
+      callId,
+      type: "recap.partial",
+      severity: "WARNING",
+      summary: "One recap channel failed; another delivered",
+      payload: { failed },
+    });
   }
-  const message = await twilioClient().messages.create({
-    to: carrier.phoneE164,
-    from: process.env.TWILIO_PHONE_NUMBER!,
-    body: `${commitment.recapText} Responde CORRECCIÓN si algún dato no coincide.`,
-    statusCallback: `${publicBaseUrl()}/api/twilio/messages?commitmentId=${commitment.id}`,
-  });
-  await store.addEvent({
-    operationId: commitment.operationId,
-    callId,
-    type: "recap.queued",
-    summary: "Written recap queued with Twilio",
-    payload: { messageSid: message.sid },
-  });
-  return commitment;
+  return store.markRecapSent(commitment.id, delivered.join("+"));
 }
 
 interface DiarizedSegment {

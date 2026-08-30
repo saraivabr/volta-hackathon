@@ -199,3 +199,23 @@
 **Why:** Forty-nine font declarations were 10px or under and two were 6px, across twenty-six unrelated spacing values. On the laptop it authored itself on that reads as density; projected in a room it is unreadable, and the first person to say so was an operator asking for the audit log to be bigger — the log being the surface that carries the timestamps and refusals a jury is meant to check. A scale fixes the whole surface at once instead of the one panel somebody complained about.
 
 **Trade-off:** Less fits above the fold, and the escalation drawer grew enough to cover the audit stream, so it moved beside that column and now collapses itself once a human is connected. Density bought back nothing that being unreadable did not cost.
+
+## ADR-021 — The recap leaves by every channel that is configured
+
+**Decision:** Send the written recap over the text transport and, when the carrier has an address and email is configured, by email as well. One delivery is enough to advance the commitment; none leaves it at `VERBALLY_CONFIRMED` and says so.
+
+**Alternatives:** Keep a single channel per transport; treat email as a later concern.
+
+**Why:** The challenge asks for a written recap by SMS *or* email, and the recap is one half of the dual verification a commitment rests on. A handset that is off, a mistyped number and a message that never lands all fail silently and identically, and the previous code took the first channel's success as the whole answer. Two records of the same terms cost one extra request.
+
+**Trade-off:** A partial delivery still advances the commitment, with the failed channel named in the ledger rather than retried. Blocking on the weaker channel would fail commitments that are genuinely evidenced.
+
+## ADR-022 — The handoff number belongs to the briefing
+
+**Decision:** The operation carries the number a handoff dials, editable in the briefing, with the environment variable as a fallback.
+
+**Alternatives:** Keep it in the environment only.
+
+**Why:** Who covers an escalation changes by shift and by operation, and the person on duty cannot edit an environment variable or redeploy to answer a call. Leaving it empty keeps the escalation in the dashboard, which is a deliberate choice rather than a missing one.
+
+**Trade-off:** A number typed into a briefing is validated as E.164 and nothing more; a wrong-but-valid number sends the handoff somewhere nobody is waiting. The ledger records which number was dialled.

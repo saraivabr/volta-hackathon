@@ -63,6 +63,8 @@ WaCalls uses an unofficial WhatsApp Web transport. Use a dedicated account, expl
 - The market engine selects only among eligible offers.
 - Every final transcript turn and operational decision is persisted, correlated to the call and shown in the UI.
 - A commitment still requires explicit confirmation, written recap and linked evidence.
+- The written recap leaves by every configured channel — the text transport, and email when the carrier has an address. One delivery advances the commitment; none leaves it short and says so.
+- The number a handoff dials belongs to the briefing, not the environment: whoever is on duty can change it without a deploy. Leave it empty and the escalation stays in the dashboard.
 - Inbound calls from allowlisted carriers are correlated automatically; an unauthorized change opens a live browser-microphone takeover without ending the call.
 
 ### What enforces each limit

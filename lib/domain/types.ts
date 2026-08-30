@@ -39,6 +39,8 @@ export interface Operation {
   pickupDate: string;
   pickupWindowStart: string;
   pickupWindowEnd: string;
+  /** Who the agent calls when it hits the edge of its authority. */
+  handoffPhoneE164: string | null;
   status: OperationStatus;
   createdAt: string;
   updatedAt: string;
@@ -61,6 +63,9 @@ export interface Carrier {
   name: string;
   dispatcher: string;
   phoneE164: string;
+  /** Second written channel for the recap. The challenge asks for SMS or email;
+   *  sending both leaves two independent records of the same terms. */
+  email: string | null;
 }
 
 export interface CallAttempt {

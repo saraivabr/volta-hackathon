@@ -165,3 +165,63 @@ describe("working the market unattended", () => {
     expect(after.operation.status).toBe("AT_RISK");
   });
 });
+
+/**
+ * The recap is one half of the dual verification the challenge asks for. It
+ * leaves by every configured channel, and a commitment does not advance on a
+ * recap that never left.
+ */
+describe("written recap", () => {
+  const original = { ...process.env };
+
+  beforeEach(() => {
+    process.env.VOLTA_DEMO_MODE = "true";
+    globalThis.__voltaSnapshot = undefined;
+    globalThis.__voltaStore = undefined;
+  });
+
+  afterEach(() => {
+    process.env = { ...original };
+    globalThis.__voltaSnapshot = undefined;
+    globalThis.__voltaStore = undefined;
+  });
+
+  it("records which channel carried the recap", async () => {
+    const snapshot = await startMarketScan("op-2041");
+    const sent = snapshot.events.filter((event) => event.type === "recap.sent");
+
+    expect(sent.length).toBeGreaterThan(0);
+    expect(snapshot.commitment?.recapSentAt).not.toBeNull();
+    expect(snapshot.events.some((event) => event.type === "recap.failed")).toBe(false);
+  });
+
+  it("leaves the commitment short when nothing could be delivered", async () => {
+    const { sendCommitmentRecap } = await import("@/lib/services/verification");
+    const store = getStore();
+    const snapshot = await store.getSnapshot("op-2041");
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "BOOKING" });
+    const offer = await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 8500,
+      currency: "MXN",
+      pickupDate: snapshot.operation.pickupDate,
+      pickupTime: "10:00",
+    });
+    const staged = await store.stageBooking("op-2041", offer.id, call.id);
+    await store.confirmBooking(staged.commitment.id, staged.confirmationToken);
+
+    // Out of demo mode the transport is really attempted, and none is reachable.
+    process.env.VOLTA_DEMO_MODE = "false";
+    process.env.VOLTA_VOICE_TRANSPORT = "whatsapp";
+    delete process.env.WACALLS_BASE_URL;
+    delete process.env.WACALLS_API_TOKEN;
+
+    expect(await sendCommitmentRecap(call.id)).toBeNull();
+    const after = await store.getSnapshot("op-2041");
+    expect(after.commitment?.status).toBe("VERBALLY_CONFIRMED");
+    expect(after.commitment?.recapSentAt).toBeNull();
+    expect(after.events.some((event) => event.type === "recap.failed")).toBe(true);
+  });
+});

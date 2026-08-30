@@ -93,13 +93,14 @@ function briefingFromSnapshot(snapshot: OperationSnapshot) {
     pickupDate: snapshot.operation.pickupDate,
     pickupWindowStart: snapshot.operation.pickupWindowStart,
     pickupWindowEnd: snapshot.operation.pickupWindowEnd,
+    handoffPhoneE164: snapshot.operation.handoffPhoneE164 ?? "",
     targetRate: snapshot.mandate.targetRate,
     maximumRate: snapshot.mandate.maximumRate,
     negotiateRate: snapshot.mandate.negotiateRate,
     changePickupDay: snapshot.mandate.changePickupDay,
     acceptAccessorials: snapshot.mandate.acceptAccessorials,
     maximumCounters: snapshot.mandate.maximumCounters,
-    carriers: snapshot.carriers.map(({ id, name, dispatcher, phoneE164 }) => ({ id, name, dispatcher, phoneE164 })),
+    carriers: snapshot.carriers.map(({ id, name, dispatcher, phoneE164, email }) => ({ id, name, dispatcher, phoneE164, email: email ?? "" })),
   };
 }
 
@@ -232,6 +233,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     const number = (name: string) => Number(field(name)?.value);
     const checked = (name: string) => field(name)?.checked ?? false;
     return {
+      handoffPhoneE164: text("handoffPhoneE164"),
       reference: text("reference"),
       customer: text("customer"),
       containerReference: text("containerReference"),
@@ -251,6 +253,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
         name: text(`carrierName.${index}`),
         dispatcher: text(`carrierDispatcher.${index}`),
         phoneE164: text(`carrierPhone.${index}`),
+        email: text(`carrierEmail.${index}`),
       })),
     };
   }
@@ -305,7 +308,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     }
   }
 
-  function updateCarrier(index: number, field: "name" | "dispatcher" | "phoneE164", value: string) {
+  function updateCarrier(index: number, field: "name" | "dispatcher" | "phoneE164" | "email", value: string) {
     setForm((current) => ({
       ...current,
       carriers: current.carriers.map((carrier, carrierIndex) =>
@@ -435,6 +438,24 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
           </div>
 
           <div className="briefing-group">
+            <span className="micro-label">Escalation</span>
+            <label className="wide-field">
+              <span>Handoff number</span>
+              <input
+                name="handoffPhoneE164"
+                placeholder="+52 55 0000 0000"
+                disabled={!editing}
+                value={form.handoffPhoneE164}
+                onChange={(e) => updateBriefing("handoffPhoneE164", e.target.value)}
+              />
+            </label>
+            <p className="field-note">
+              Who the agent calls when a request falls outside this mandate. Leave it empty and the
+              escalation stays in this dashboard.
+            </p>
+          </div>
+
+          <div className="briefing-group">
             <span className="micro-label">Pickup and commercial mandate</span>
           <div className="field-grid">
             <label><span>Pickup day</span><input name="pickupDate" type="date" disabled={!editing} value={form.pickupDate} onChange={(e) => updateBriefing("pickupDate", e.target.value)} /></label>
@@ -462,6 +483,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
                 <label><span>Carrier</span><input name={`carrierName.${index}`} disabled={!editing} value={carrier.name} onChange={(e) => updateCarrier(index, "name", e.target.value)} /></label>
                 <label><span>Dispatcher</span><input name={`carrierDispatcher.${index}`} disabled={!editing} value={carrier.dispatcher} onChange={(e) => updateCarrier(index, "dispatcher", e.target.value)} /></label>
                 <label className="carrier-phone"><span>WhatsApp · E.164</span><input name={`carrierPhone.${index}`} disabled={!editing} value={carrier.phoneE164} onChange={(e) => updateCarrier(index, "phoneE164", e.target.value)} /></label>
+                <label className="carrier-phone"><span>Recap email</span><input name={`carrierEmail.${index}`} type="email" placeholder="optional" disabled={!editing} value={carrier.email ?? ""} onChange={(e) => updateCarrier(index, "email", e.target.value)} /></label>
               </div>
             ))}
           </div>

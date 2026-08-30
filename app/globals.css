@@ -132,7 +132,8 @@ button { color: inherit; }
 .mandate-lock strong { font-size: var(--fs-body); text-transform: uppercase; letter-spacing: .05em; }
 .mandate-lock span { color: #a1ac91; font-size: var(--fs-caption); }
 .briefing-group { display: grid; gap: var(--space-3); padding: 0 0 var(--space-5); margin-bottom: var(--space-5); border-bottom: 1px solid var(--line); }
-.briefing-group > .micro-label { color: var(--lime); margin-bottom: var(--space-1); }
+.briefing-group > .field-note { margin: var(--space-1) 0 0; color: var(--muted-pending); font-size: var(--fs-micro); line-height: 1.4; }
+.micro-label { color: var(--lime); margin-bottom: var(--space-1); }
 .wide-field { display: block; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
 .field-grid label:first-child { grid-column: 1 / -1; }

@@ -97,9 +97,11 @@ export async function dialAgentLeg(call: CallAttempt) {
   });
 }
 
-export async function dialHumanTakeover(call: CallAttempt) {
-  const phone = process.env.OPERATOR_PHONE_E164;
-  if (!phone) throw new Error("OPERATOR_PHONE_E164 is not configured");
+export async function dialHumanTakeover(call: CallAttempt, operatorPhone?: string | null) {
+  // The briefing owns this: who covers an escalation changes by shift, and an
+  // environment variable cannot be changed by the person on duty.
+  const phone = operatorPhone?.trim() || process.env.OPERATOR_PHONE_E164;
+  if (!phone) throw new Error("No handoff number is configured for this operation");
   return twilioClient().calls.create({
     to: phone.trim(),
     from: process.env.TWILIO_PHONE_NUMBER!.trim(),

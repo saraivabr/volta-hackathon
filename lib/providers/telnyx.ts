@@ -153,8 +153,10 @@ export async function sendTelnyxSms(to: string, text: string) {
  * the counterparty never gets hung up on. REFER to a tel: URI is unsupported,
  * which is why the operator is addressed through the Telnyx SIP domain.
  */
-export async function referCallToOperator(openaiCallId: string) {
-  const operator = required("OPERATOR_PHONE_E164").replace(/^\+/, "");
+export async function referCallToOperator(openaiCallId: string, operatorPhone?: string | null) {
+  const phone = operatorPhone?.trim() || process.env.OPERATOR_PHONE_E164?.trim();
+  if (!phone) throw new Error("No handoff number is configured for this operation");
+  const operator = phone.replace(/^\+/, "");
   const domain = required("TELNYX_SIP_DOMAIN");
   const response = await fetch(
     `https://api.openai.com/v1/realtime/calls/${encodeURIComponent(openaiCallId)}/refer`,

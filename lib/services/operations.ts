@@ -1,5 +1,6 @@
 import { latestOffers, winner } from "@/lib/domain/policy";
 import { getStore } from "@/lib/store";
+import { sendCommitmentRecap } from "@/lib/services/verification";
 import { dialHumanTakeover } from "@/lib/providers/twilio";
 import { dialVoiceCall, isVoiceConfigured, voiceProviderTag, voiceTransport } from "@/lib/providers/voice";
 import { referCallToOperator } from "@/lib/providers/telnyx";
@@ -112,7 +113,9 @@ export async function bookWinningOffer(operationId: string) {
     await store.updateCall(call.id, { status: "COMPLETED" });
     const staged = await store.stageBooking(operationId, selected.id, call.id);
     await store.confirmBooking(staged.commitment.id, staged.confirmationToken);
-    await store.markRecapSent(staged.commitment.id, "SM_SIMULATED_NO_AUDIO");
+    // Through the real recap service, not around it: a simulated run should
+    // exercise the delivery path rather than assert its outcome.
+    await sendCommitmentRecap(call.id);
     // A simulated call produces no recording, so there is nothing to link and
     // the commitment stays short of COMMITTED. Manufacturing an audio segment
     // here would put an unfalsifiable claim on the one surface whose whole
@@ -234,11 +237,11 @@ export async function takeOver(operationId: string) {
         throw new Error("WhatsApp live takeover requires the browser media bridge");
       case "telnyx": {
         if (!call.openaiCallId) throw new Error("The escalated call has no live realtime session");
-        await referCallToOperator(call.openaiCallId);
+        await referCallToOperator(call.openaiCallId, snapshot.operation.handoffPhoneE164);
         break;
       }
       default:
-        await dialHumanTakeover(call);
+        await dialHumanTakeover(call, snapshot.operation.handoffPhoneE164);
     }
   } else {
     await store.updateEscalation(escalation.id, "CONNECTED");
