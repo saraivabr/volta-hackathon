@@ -15,9 +15,7 @@ Pact turns logistics phone conversations into verified operational commitments w
 
 Live command center: [volta-hackathon.vercel.app](https://volta-hackathon.vercel.app)
 
-The access code is not in this repository. It opens a console that dials real
-phone numbers, rewrites a live mandate and can reset an operation mid-call, so
-it is handed over directly — ask the team.
+Access code: `pact-ledger-1369`
 
 ## Architecture
 
