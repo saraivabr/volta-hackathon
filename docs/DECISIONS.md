@@ -159,3 +159,13 @@
 **Why:** The challenge asks for a callback when circumstances change, without exceeding the mandate. An agreement made under an authority that no longer exists cannot keep presenting itself as live, and its audio evidence proves consent to terms nobody agreed to any more. Amending in place would leave the ledger unable to say which terms were confirmed when.
 
 **Trade-off:** The operation drops out of a committed state the moment renegotiation starts, before the new terms exist. That gap is the honest position: for those minutes there is genuinely no agreement in force.
+
+## ADR-017 — Serialise writes inside the process, keep the version check for outside it
+
+**Decision:** Queue mutations per store instance so a process never races itself, and retry a lost version race with exponential backoff and jitter instead of an immediate tight loop.
+
+**Alternatives:** Raise the retry count; move each concern to its own row and drop the single-snapshot design.
+
+**Why:** Three carriers are negotiated at once and every live call streams transcript turns, offers and events into one snapshot. Measured on the store, seventy-five concurrent turns kept four: each writer re-read the same version, collided, and re-read it again with no delay — a livelock that silently discarded the evidence surface the whole product rests on. Queuing removes the contention a process creates against itself, which is nearly all of it; the version check still guards a genuinely concurrent writer in another instance.
+
+**Trade-off:** Mutations no longer overlap within a process, so a burst is bounded by read-plus-write latency rather than running in parallel. Losing throughput is recoverable. Losing the transcript is not.

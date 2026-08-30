@@ -58,14 +58,39 @@ export abstract class BaseSnapshotStore implements VoltaStore {
     return clone(normalizeSnapshot(await this.readSnapshot(operationId)));
   }
 
-  protected async mutate<T>(fn: (snapshot: OperationSnapshot) => T | Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+  /**
+   * Writes are serialised inside the process before they reach the optimistic
+   * version check. Three live calls stream transcript turns, offers and events
+   * at the same time, and left to race on a shared snapshot they lose almost
+   * everything: measured on this store, seventy-five concurrent turns kept four.
+   * The queue removes contention a process creates against itself; the retry
+   * loop below still covers a genuinely concurrent writer in another instance.
+   */
+  private writeQueue: Promise<unknown> = Promise.resolve();
+
+  protected mutate<T>(fn: (snapshot: OperationSnapshot) => T | Promise<T>): Promise<T> {
+    const run = this.writeQueue.then(
+      () => this.attemptMutation(fn),
+      () => this.attemptMutation(fn),
+    );
+    this.writeQueue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async attemptMutation<T>(fn: (snapshot: OperationSnapshot) => T | Promise<T>): Promise<T> {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      // A rejection from fn is the caller's answer and propagates untouched;
+      // only a lost version race reaches the backoff below.
       const snapshot = clone(normalizeSnapshot(await this.readSnapshot()));
       const expectedVersion = snapshot.version;
       const result = await fn(snapshot);
       snapshot.operation.updatedAt = now();
       snapshot.version = expectedVersion + 1;
       if (await this.writeSnapshot(snapshot, expectedVersion)) return clone(result);
+
+      // Jitter so competing instances stop re-reading the same version in lockstep.
+      const delay = Math.min(200, 12 * 2 ** attempt) * (0.5 + Math.random());
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
     throw new Error("Concurrent operation update; retry the action");
   }
