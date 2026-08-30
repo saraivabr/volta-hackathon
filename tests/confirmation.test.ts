@@ -77,3 +77,64 @@ describe("confirmation vocabulary", () => {
     });
   }
 });
+
+/**
+ * The agent speaks Spanish by mandate and follows the counterparty into
+ * Portuguese when they answer in it, which is what the real transcripts show.
+ * A matcher that only knows one of those languages refuses half the deals.
+ */
+describe("bilingual confirmation", () => {
+  const accepted = [
+    "Sim, confirmo",
+    "Sim senhor",
+    "Isso, confirmado",
+    "Correto, pode registrar",
+    "Confirmo, pode fechar",
+    "Sim, está tudo certo",
+    "Perfeito, confirmo",
+    "Fechado",
+    "Combinado, pode agendar",
+    "Aceito os termos",
+    "Sí, confirmo todos los términos",
+    "Correcto, procedemos con eso",
+    "De acuerdo, confirmado",
+    "Exacto, así queda registrado",
+    "Trato hecho",
+  ];
+  for (const phrase of accepted) {
+    it(`accepts "${phrase}"`, () => {
+      expect(isUnequivocalConfirmation(phrase)).toBe(true);
+    });
+  }
+
+  const rejected = [
+    // Borrowed authority: the likeliest thing said to move a booking.
+    "Sim, meu chefe já aprovou dez mil e quinhentos",
+    "Confirmo, o gerente autorizou o valor maior",
+    "Sí, mi jefe ya aprobó el precio",
+    // Conditions attached to the yes.
+    "Confirmo se subirem o preço",
+    "Sim, confirmo caso mudem o horário",
+    "Correcto, si me suben la tarifa",
+    // Walk-backs and hedges.
+    "Sim, mas muda o horário",
+    "Confirmo, porém preciso ajustar a data",
+    "Acho que sim",
+    "Talvez",
+    "Quase, corrijo o valor",
+    "Sim, espera um momento",
+    // Deferrals.
+    "Confirmo depois de falar com o motorista",
+    "Sim, primeiro preciso checar",
+    // Acknowledgement, not agreement.
+    "Beleza",
+    "Ok",
+    "Perfeito",
+    "Certo, vou verificar e te falo",
+  ];
+  for (const phrase of rejected) {
+    it(`rejects "${phrase}"`, () => {
+      expect(isUnequivocalConfirmation(phrase)).toBe(false);
+    });
+  }
+});

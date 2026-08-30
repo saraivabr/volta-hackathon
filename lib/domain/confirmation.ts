@@ -3,52 +3,76 @@ function normalize(value: string) {
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[.,!?¿¡]+/g, " ")
+    .replace(/[.,!?¿¡;:]+/g, " ")
     .replace(/\bde acuerdo\b/g, "deacuerdo")
     .replace(/\bsin embargo\b/g, "sinembargo")
+    .replace(/\btrato hecho\b/g, "tratohecho")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 /**
- * Anything that walks back, qualifies or reopens the terms. Checked first: one
- * of these anywhere in the answer disqualifies it however affirmative the rest
- * sounds.
+ * Anything that walks back, qualifies, defers or borrows authority. Checked
+ * first: one of these anywhere disqualifies the answer however affirmative the
+ * rest sounds. The authority claims are here because "my manager already
+ * approved it" is the single likeliest thing said to move a booking, and it is
+ * not consent to the terms that were read.
  */
-const CONTRADICTION =
-  /\b(no|nao|pero|mas|aunque|excepto|salvo|corrijo|correccion|cambiar|cambio|cambia|espera|esperen|equivoque|error|casi|quiza|quizas|tal vez|creo|deberia|sinembargo|antes de|primero|si pero)\b/;
+const CONTRADICTION = new RegExp(
+  [
+    "\\b(no|nao|pero|mas|porem|contudo|todavia|aunque|embora|excepto|exceto|salvo)\\b",
+    "\\b(corrijo|correccion|correcao|cambiar|cambio|cambia|mudar|muda|trocar|alterar|ajustar)\\b",
+    "\\b(espera|esperen|espere|aguarda|aguarde|equivoque|errei|error|erro)\\b",
+    "\\b(casi|quase|quiza|quizas|talvez|acho|creo|penso|deberia|deveria|sinembargo)\\b",
+    "\\b(antes de|primeiro|primero|depois|despues|mais tarde|luego)\\b",
+    "\\b(jefe|chefe|patron|patrao|gerente|supervisor|director|diretor|dueno|dono)\\b",
+    "\\b(aprobo|aprovou|autorizo|autorizou|libero|liberou|permitiu|permitio)\\b",
+  ].join("|"),
+);
+
+/** Conditionals only read as "if" when something follows them mid-answer. */
+const CONDITIONAL = new Set(["si", "se", "caso", "cuando", "quando", "desde"]);
 
 /**
- * Words that answer "sí o no". Back-channel — `okay`, `vale`, `listo` — is not
- * in here: people say it constantly while listening, and treating it as consent
- * once anchored audio evidence to somebody saying "Okay" eighty seconds into a
- * call nobody had confirmed.
+ * Saying one of these is confirming, whatever else surrounds it. A dispatcher
+ * who says "confirmo, pode fechar" has confirmed; refusing them because
+ * "fechar" was not on a list is how a working agent looks broken.
  */
-const AFFIRMATIVE = new Set([
-  "si", "claro", "correcto", "correcta", "confirmo", "confirmado", "confirmada",
-  "exacto", "exactamente", "deacuerdo", "afirmativo", "acepto", "aceptamos", "confirmamos",
-]);
+const CONFIRMS = new RegExp(
+  "\\b(confirmo|confirmado|confirmada|confirmamos|confirma|deacuerdo|correcto|correcta|correto|" +
+    "correta|exacto|exactamente|exato|acepto|aceptamos|aceito|aceitamos|fechado|fechamos|combinado|" +
+    "tratohecho|afirmativo)\\b",
+);
 
-/** Words allowed around an affirmative without weakening it. */
+/** A bare yes, in either language the agent actually speaks. */
+const BARE_YES = new Set(["si", "sim", "claro", "isso", "exato", "certo", "positivo"]);
+
+/** Words that may surround a bare yes without turning it into a sentence. */
 const SUPPORTING = new Set([
-  ...AFFIRMATIVE,
-  "ok", "okay", "vale", "listo", "perfecto", "adelante", "sale", "orale", "sip",
-  "senor", "senora", "senorita", "todo", "todos", "toda", "todas", "los", "las",
-  "terminos", "termino", "condiciones", "bien", "esta", "estan", "es", "eso", "esos",
-  "asi", "y", "muy", "gracias", "procedemos", "procedo", "cerrado", "trato", "hecho",
-  "queda", "quedamos", "acepto", "aceptamos", "aprobado", "seguro", "claro que si",
-  "que", "lo", "el", "la", "mismo", "tal", "cual",
+  ...BARE_YES,
+  "senor", "senora", "senorita", "senhor", "senhora", "sr", "sra",
+  "todo", "todos", "toda", "todas", "tudo", "los", "las", "os", "as",
+  "terminos", "termino", "termos", "condiciones", "condicoes",
+  "bien", "bem", "esta", "estan", "e", "es", "eso", "esos", "isso", "asi", "assim",
+  "y", "e", "muy", "muito", "gracias", "obrigado", "obrigada",
+  "ok", "okay", "vale", "listo", "perfecto", "perfeito", "adelante", "beleza",
+  "que", "lo", "el", "la", "o", "a", "mismo", "certinho",
 ]);
 
-const MAX_WORDS = 10;
+const MAX_WORDS = 12;
 
 /**
- * A booking may only advance on an answer that is affirmative and nothing else.
- * Real dispatchers say "sí señor" and "perfecto, confirmo"; refusing those reads
- * as a broken agent, so the surrounding vocabulary is wide. What stays narrow is
- * the core: the answer has to contain an actual yes, carry no qualifier, and
- * stay short. Acknowledgement is not agreement, and a sentence long enough to
- * hold an argument is not consent.
+ * A booking may only advance on an answer that agrees to the terms just read
+ * and adds no condition to them.
+ *
+ * Two ways to qualify. Saying an explicit confirming word counts however the
+ * sentence is built, because that is how people actually answer — the earlier
+ * rule demanded every word come from a fixed list, which refused "sim,
+ * confirmo" outright since the list held no Portuguese at all. A bare yes
+ * counts too, but only while it stays a bare yes.
+ *
+ * What disqualifies either is the same: a walk-back, a hedge, a deferral, a
+ * borrowed authority, or a conditional with something hanging off it.
  */
 export function isUnequivocalConfirmation(value: string) {
   const normalized = normalize(value);
@@ -56,7 +80,12 @@ export function isUnequivocalConfirmation(value: string) {
 
   const words = normalized.split(" ").filter(Boolean);
   if (words.length === 0 || words.length > MAX_WORDS) return false;
-  if (!words.some((word) => AFFIRMATIVE.has(word))) return false;
 
-  return words.every((word) => SUPPORTING.has(word));
+  // "confirmo se subirem o preço" is a negotiation, not a yes.
+  for (let i = 1; i < words.length - 1; i += 1) {
+    if (CONDITIONAL.has(words[i])) return false;
+  }
+
+  if (CONFIRMS.test(normalized)) return true;
+  return BARE_YES.has(words[0]) && words.every((word) => SUPPORTING.has(word));
 }
