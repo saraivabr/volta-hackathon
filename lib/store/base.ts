@@ -573,6 +573,13 @@ export abstract class BaseSnapshotStore implements VoltaStore {
 
   async createEscalation(operationId: string, callId: string, reason: string, requestedChange: string) {
     return this.mutate((snapshot) => {
+      // The engine escalates the moment it blocks something, and the agent is
+      // told to hand off as well. Both arriving is the normal case, so a second
+      // request joins the live escalation instead of resetting a human who is
+      // already on the line back to OPEN.
+      const live = snapshot.escalation;
+      if (live && live.callId === callId && live.status !== "RESOLVED") return live;
+
       const escalation: Escalation = {
         id: randomUUID(),
         operationId,

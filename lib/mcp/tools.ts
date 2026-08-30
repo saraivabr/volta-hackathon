@@ -231,12 +231,23 @@ export async function executeTool(name: string, rawArguments: unknown): Promise<
         source: "MANDATE_ENGINE",
         idempotencyKey: `change:${input.callId}:${input.description.toLowerCase().slice(0, 100)}:${violations.join("|")}`,
       });
+      // Escalating is a consequence of the refusal, not a favour the model does
+      // afterwards. The engine opens it here so a model that never calls
+      // request_handoff cannot leave a blocked change with nobody watching it.
+      if (violations.length) {
+        await store.createEscalation(
+          input.operationId,
+          input.callId,
+          `Blocked change outside the mandate: ${input.description}`,
+          input.description,
+        );
+      }
       return {
         allowed: violations.length === 0,
         escalation_required: violations.length > 0,
         violations,
         instruction: violations.length
-          ? "Do not change the commitment. Explain the authority limit and request_handoff."
+          ? "A human has already been brought in. Tell the caller that, explain the authority limit, and wait without negotiating."
           : "Record the request; do not imply a new commitment without explicit confirmation.",
       };
     }

@@ -3,6 +3,7 @@ import { authorizeRelayRequest } from "@/lib/server/relay-auth";
 import { getStore } from "@/lib/store";
 import { sendCommitmentRecap } from "@/lib/services/verification";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
+import { autoBookIfSettled } from "@/lib/services/operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,6 +67,11 @@ export async function POST(request: Request) {
     } else if (event.eventType === "call.ended" || event.eventType === "stream.stopped") {
       await store.updateCall(event.callId, { status: "COMPLETED" });
       await store.finalizeCallBrief(event.callId);
+      // The last quote call closing is what settles the market; nobody has to
+      // be watching the dashboard for the winner to be booked.
+      await autoBookIfSettled("op-2041").catch((error) => {
+        console.error(JSON.stringify({ level: "error", message: "Auto-book failed", error: String(error) }));
+      });
       if (event.eventType === "stream.stopped") await sendCommitmentRecap(event.callId);
     } else if (event.eventType === "relay.error") {
       await store.updateCall(event.callId, { status: "FAILED", failureReason: event.detail ?? "Realtime relay error" });

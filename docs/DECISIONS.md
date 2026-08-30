@@ -169,3 +169,23 @@
 **Why:** Three carriers are negotiated at once and every live call streams transcript turns, offers and events into one snapshot. Measured on the store, seventy-five concurrent turns kept four: each writer re-read the same version, collided, and re-read it again with no delay — a livelock that silently discarded the evidence surface the whole product rests on. Queuing removes the contention a process creates against itself, which is nearly all of it; the version check still guards a genuinely concurrent writer in another instance.
 
 **Trade-off:** Mutations no longer overlap within a process, so a burst is bounded by read-plus-write latency rather than running in parallel. Losing throughput is recoverable. Losing the transcript is not.
+
+## ADR-018 — The engine escalates; it does not ask the model to
+
+**Decision:** When the mandate engine blocks an operational change it opens the escalation itself. The tool result tells the agent a human is already on the way rather than instructing it to call `request_handoff`.
+
+**Alternatives:** Keep returning `escalation_required` and rely on the agent to act on it.
+
+**Why:** Escalating is the most safety-critical action in the system and it was the one thing left to the model's discretion — a refusal was recorded, an instruction was returned, and if the model never called the tool the blocked change sat there with nobody watching. That inverts the trust boundary the rest of the design holds. Both paths arriving is now the normal case, so a second `request_handoff` joins the live escalation instead of resetting a human already on the line back to `OPEN`.
+
+**Trade-off:** A blocked change always raises a human, including ones an operator might have waved through. Escalating a change nobody minded costs a phone call; missing one costs the commitment.
+
+## ADR-019 — Delegation ends at the booking, not at the quotes
+
+**Decision:** Once every quote call has settled, the standing winner is booked without an operator pressing anything. If nothing the market returned fits the mandate, a human is called instead.
+
+**Alternatives:** Keep the operator in the loop for the booking call, as a review step.
+
+**Why:** The ranking was already deterministic and server-side; only the trigger was manual, which meant an operator who closed the laptop — the thing the pitch tells them to do — came back to three finished quotes and no truck. The review step it offered was illusory: the winner is chosen by policy, so there was nothing for a human to weigh, only something for them to be late for.
+
+**Trade-off:** An operator who wanted to intervene between quoting and booking now has to renegotiate afterwards instead. The empty-market case is the one that still stops and asks, because that is a decision policy genuinely cannot make.

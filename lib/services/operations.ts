@@ -1,4 +1,4 @@
-import { winner } from "@/lib/domain/policy";
+import { latestOffers, winner } from "@/lib/domain/policy";
 import { getStore } from "@/lib/store";
 import { dialHumanTakeover } from "@/lib/providers/twilio";
 import { dialVoiceCall, isVoiceConfigured, voiceProviderTag, voiceTransport } from "@/lib/providers/voice";
@@ -58,8 +58,9 @@ export async function startMarketScan(operationId: string) {
       operationId,
       type: "demo.simulated",
       severity: "WARNING",
-      summary: "Market scan simulated because Twilio is not configured",
+      summary: "Market scan simulated because live telephony is not configured",
     });
+    await autoBookIfSettled(operationId);
   }
   return store.getSnapshot(operationId);
 }
@@ -135,6 +136,46 @@ export async function bookWinningOffer(operationId: string) {
  * the standing agreement is retired first so nothing pretends to be live while
  * it is being replaced.
  */
+/**
+ * The market is worked end to end without a human pressing anything. Ranking was
+ * always deterministic; only the trigger was manual. Once every quote call has
+ * settled this books the standing winner — or, when the market produced nothing
+ * the mandate allows, escalates rather than quietly stopping with an operation
+ * that looks finished and has no carrier.
+ */
+export async function autoBookIfSettled(operationId: string) {
+  const store = getStore();
+  const snapshot = await store.getSnapshot(operationId);
+
+  if (snapshot.commitment && !["SUPERSEDED", "REJECTED"].includes(snapshot.commitment.status)) return null;
+  if (snapshot.calls.some((call) => call.mode === "BOOKING" && call.status !== "FAILED")) return null;
+
+  const quotes = snapshot.calls.filter((call) => call.mode === "QUOTE");
+  if (!quotes.length) return null;
+  if (!quotes.every((call) => ["COMPLETED", "FAILED"].includes(call.status))) return null;
+
+  if (!winner(snapshot)) {
+    const blocked = latestOffers(snapshot.offers).filter((offer) => !offer.eligible);
+    if (!blocked.length) return null;
+    const call = quotes.at(-1)!;
+    await store.createEscalation(
+      operationId,
+      call.id,
+      "Every quote the market returned falls outside the mandate",
+      blocked.map((offer) => `${offer.carrierId}: ${offer.violations.join(", ")}`).join(" · "),
+    );
+    return store.getSnapshot(operationId);
+  }
+
+  await store.addEvent({
+    operationId,
+    type: "market.settled",
+    severity: "INFO",
+    summary: "All quote calls settled; booking the standing winner without waiting for an operator",
+  });
+  return bookWinningOffer(operationId);
+}
+
 export async function startRenegotiation(operationId: string) {
   const store = getStore();
   const snapshot = await store.getSnapshot(operationId);
