@@ -3,7 +3,7 @@ import { getStore } from "@/lib/store";
 import { sendCommitmentRecap } from "@/lib/services/verification";
 import { dialHumanTakeover } from "@/lib/providers/twilio";
 import { dialVoiceCall, isVoiceConfigured, voiceProviderTag, voiceTransport } from "@/lib/providers/voice";
-import { referCallToOperator } from "@/lib/providers/telnyx";
+import { callOperatorWithContext, isTelnyxConfigured, referCallToOperator } from "@/lib/providers/telnyx";
 
 const demoOffers = [
   { carrierId: "carrier-azul", amount: 8900, pickupDate: "2026-09-03", pickupTime: "11:00" },
@@ -233,8 +233,34 @@ export async function takeOver(operationId: string) {
   await store.updateEscalation(escalation.id, "DIALING");
   if (isVoiceConfigured() && process.env.VOLTA_DEMO_MODE !== "true") {
     switch (voiceTransport()) {
-      case "whatsapp":
-        throw new Error("WhatsApp live takeover requires the browser media bridge");
+      case "whatsapp": {
+        // The WhatsApp leg cannot be transferred to a phone. The human it needs
+        // still has one, so ring it and read the escalation out; the live audio
+        // is joined through the browser bridge in parallel.
+        const phone = snapshot.operation.handoffPhoneE164?.trim();
+        if (phone && isTelnyxConfigured()) {
+          await callOperatorWithContext(phone, call.id);
+          await store.addEvent({
+            operationId,
+            callId: call.id,
+            type: "escalation.operator_called",
+            severity: "WARNING",
+            summary: `Calling ${phone} with the escalation context`,
+          });
+        } else {
+          await store.updateEscalation(escalation.id, "CONNECTED");
+          await store.addEvent({
+            operationId,
+            callId: call.id,
+            type: "escalation.dashboard_only",
+            severity: "WARNING",
+            summary: phone
+              ? "No PSTN transport is configured, so the handoff stays in the dashboard"
+              : "No handoff number is set on the briefing, so the handoff stays in the dashboard",
+          });
+        }
+        break;
+      }
       case "telnyx": {
         if (!call.openaiCallId) throw new Error("The escalated call has no live realtime session");
         await referCallToOperator(call.openaiCallId, snapshot.operation.handoffPhoneE164);

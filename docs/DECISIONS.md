@@ -219,3 +219,13 @@
 **Why:** Who covers an escalation changes by shift and by operation, and the person on duty cannot edit an environment variable or redeploy to answer a call. Leaving it empty keeps the escalation in the dashboard, which is a deliberate choice rather than a missing one.
 
 **Trade-off:** A number typed into a briefing is validated as E.164 and nothing more; a wrong-but-valid number sends the handoff somewhere nobody is waiting. The ledger records which number was dialled.
+
+## ADR-023 — A leg that cannot be transferred still reaches a person
+
+**Decision:** When the voice transport cannot hand the live leg to a phone, ring the briefing's handoff number over the public network and read the escalation aloud, then let the operator join the audio through the browser bridge. With no number set, or no PSTN transport, say in the ledger that the handoff is staying in the dashboard.
+
+**Alternatives:** Keep throwing, which is what happened; leave the browser bridge as the only path.
+
+**Why:** WhatsApp Web has no transfer primitive, so the takeover raised an error that surfaced as a red banner and the escalation went back to the dashboard — an operator watching a screen they may not be in front of. The human the escalation needs has a phone whether or not the counterparty's leg can move to it, and reaching them briefed is most of what a handoff is for.
+
+**Trade-off:** The operator is called and told, not conferenced in; joining the live audio still means opening the dashboard and granting the microphone. Two steps beat an error message.

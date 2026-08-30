@@ -72,6 +72,18 @@ export async function sendCommitmentRecap(callId: string) {
     failed.push(`text: ${String(error)}`);
   }
 
+  if (carrier.email && !isEmailConfigured()) {
+    // A channel the operator asked for and the deployment cannot provide is a
+    // gap worth naming, not one to skip quietly.
+    await store.addEvent({
+      operationId: commitment.operationId,
+      callId,
+      type: "recap.channel_unavailable",
+      severity: "WARNING",
+      summary: `${carrier.email} is on the briefing but no email sender is configured`,
+    });
+  }
+
   if (carrier.email && isEmailConfigured()) {
     try {
       const { messageId } = await sendRecapEmail(

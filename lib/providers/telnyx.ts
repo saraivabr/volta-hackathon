@@ -128,6 +128,34 @@ export async function dialCall(call: CallAttempt, carrier: Carrier) {
   return { carrierCallSid: callSid(payload), agentCallSid: null };
 }
 
+/**
+ * A WhatsApp leg cannot be transferred to a phone, but the human it needs still
+ * has one. This rings the number on the briefing and reads the escalation out
+ * loud, so somebody is reached and briefed even when the live audio can only be
+ * joined through the browser bridge.
+ */
+export async function callOperatorWithContext(phone: string, callId: string) {
+  const body = new URLSearchParams({
+    To: phone,
+    From: required("TELNYX_PHONE_NUMBER"),
+    ApplicationSid: required("TELNYX_TEXML_APP_ID"),
+    Url: `${publicBaseUrl()}/api/telnyx/texml/handoff?callId=${encodeURIComponent(callId)}`,
+    Method: "POST",
+    StatusCallback: `${publicBaseUrl()}/api/telnyx/texml/status?callId=${encodeURIComponent(callId)}`,
+    StatusCallbackMethod: "POST",
+    Timeout: "30",
+  });
+  const payload = await texmlRequest("/Calls", body);
+  return { callSid: callSid(payload) };
+}
+
+export function handoffTexml(lines: string[]): string {
+  const say = lines
+    .map((line) => `<Say voice="Polly.Mia" language="es-MX">${escapeXml(line)}</Say>`)
+    .join("<Pause length=\"1\"/>");
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${say}<Pause length="1"/><Hangup/></Response>`;
+}
+
 export async function sendTelnyxSms(to: string, text: string) {
   const response = await fetch(`${TELNYX_API}/messages`, {
     method: "POST",
