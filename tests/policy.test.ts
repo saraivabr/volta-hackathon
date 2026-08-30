@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSeedSnapshot } from "@/lib/domain/seed";
-import { evaluateOffer, rankOffers } from "@/lib/domain/policy";
+import { evaluateOffer, mayCloseOnQuote, rankOffers } from "@/lib/domain/policy";
 
 describe("mandate policy", () => {
   it("blocks a rate above the human ceiling", () => {
@@ -157,5 +157,82 @@ describe("offer restatement", () => {
     expect(echoed.revision).toBe(1);
     expect(moved.revision).toBe(2);
     expect((await store.getSnapshot()).offers).toHaveLength(2);
+  });
+});
+
+describe("closing on the quote call", () => {
+  const quote = (snapshot: ReturnType<typeof createSeedSnapshot>, carrierId: string, status: string) => ({
+    id: `call-${carrierId}`,
+    operationId: "op-2041",
+    carrierId,
+    mode: "QUOTE" as const,
+    status: status as "COMPLETED",
+    conferenceName: "c",
+    twilioCallSid: null,
+    twilioAgentCallSid: null,
+    openaiCallId: null,
+    startedAt: null,
+    endedAt: null,
+    failureReason: null,
+  });
+  const offer = (id: string, carrierId: string, amount: number, eligible = true) => ({
+    id,
+    operationId: "op-2041",
+    carrierId,
+    callId: `call-${carrierId}`,
+    revision: 1,
+    amount,
+    currency: "MXN" as const,
+    pickupDate: "2026-09-03",
+    pickupTime: "10:00",
+    conditions: [],
+    eligible,
+    violations: [] as string[],
+    supersededAt: null,
+    createdAt: "2026-09-01T00:00:00.000Z",
+  });
+
+  it("closes immediately when the offer met the target rate", () => {
+    const base = createSeedSnapshot(); // target 8500
+    const snapshot = {
+      ...base,
+      offers: [offer("o1", "carrier-azul", 8400)],
+      calls: [quote(base, "carrier-azul", "IN_PROGRESS")],
+    };
+    expect(mayCloseOnQuote(snapshot, "o1")).toEqual({ allowed: true, reason: "met_target_rate" });
+  });
+
+  it("waits while another carrier has not answered", () => {
+    const base = createSeedSnapshot();
+    const snapshot = {
+      ...base,
+      offers: [offer("o1", "carrier-azul", 8900)],
+      calls: [quote(base, "carrier-azul", "IN_PROGRESS")],
+    };
+    expect(mayCloseOnQuote(snapshot, "o1")).toEqual({ allowed: false, reason: "market_still_open" });
+  });
+
+  it("closes above target once the rest of the market has settled", () => {
+    const base = createSeedSnapshot();
+    const snapshot = {
+      ...base,
+      offers: [offer("o1", "carrier-azul", 8900)],
+      calls: [
+        quote(base, "carrier-azul", "IN_PROGRESS"),
+        quote(base, "carrier-rutapac", "COMPLETED"),
+        quote(base, "carrier-manzanillo", "FAILED"),
+      ],
+    };
+    expect(mayCloseOnQuote(snapshot, "o1")).toEqual({ allowed: true, reason: "market_settled" });
+  });
+
+  it("never closes on an offer outside the mandate", () => {
+    const base = createSeedSnapshot();
+    const snapshot = {
+      ...base,
+      offers: [offer("o1", "carrier-azul", 8400, false)],
+      calls: [quote(base, "carrier-azul", "IN_PROGRESS")],
+    };
+    expect(mayCloseOnQuote(snapshot, "o1").allowed).toBe(false);
   });
 });

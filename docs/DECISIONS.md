@@ -229,3 +229,23 @@
 **Why:** WhatsApp Web has no transfer primitive, so the takeover raised an error that surfaced as a red banner and the escalation went back to the dashboard — an operator watching a screen they may not be in front of. The human the escalation needs has a phone whether or not the counterparty's leg can move to it, and reaching them briefed is most of what a handoff is for.
 
 **Trade-off:** The operator is called and told, not conferenced in; joining the live audio still means opening the dashboard and granting the microphone. Two steps beat an error message.
+
+## ADR-024 — A quote call may close the deal
+
+**Decision:** `stage_booking` is allowed during a quote call when the engine agrees the market no longer justifies calling back: the offer met the target rate, or every other carrier has already settled. Otherwise it refuses and tells the agent to finish as a quote.
+
+**Alternatives:** Keep quoting and booking as separate calls always; let the model decide when to close.
+
+**Why:** Two calls per carrier is the safe sequence while the market is unknown, and it stops being safe and starts being slow the moment either condition holds. `targetRate` had never been used for anything — it is the rate the operator said to take, so an offer that meets it is a decision already made. Leaving the judgement to the model would put the choice of when to stop shopping in the place this design keeps authority out of.
+
+**Trade-off:** Closing at target can leave a cheaper quote uncollected from a carrier who had not answered yet. That is what a target rate means: a price good enough to stop looking.
+
+## ADR-025 — Inbound calls are answered
+
+**Decision:** An incoming WhatsApp call activates the realtime agent and is accepted, from any number.
+
+**Alternatives:** Answer only allowlisted numbers; keep announcing the call in the dashboard without picking it up.
+
+**Why:** The code to register, brief and accept an inbound call was written and never wired: `OnIncoming` updated the panel and let the phone ring out. A judge told to call the agent reached nothing. Consent is handled where it belongs — the agent opens by saying it is an AI and asking permission to record — rather than by refusing to answer strangers, which would also refuse the judge.
+
+**Trade-off:** Any caller reaches the agent. The mandate governs the conversation either way, and an unrecognised caller is written to the ledger as a warning.

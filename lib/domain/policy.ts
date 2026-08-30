@@ -79,3 +79,38 @@ export function assertOfferBookable(snapshot: OperationSnapshot, offerId: string
   return selected;
 }
 
+/**
+ * Whether a quote call may close the deal instead of hanging up and calling
+ * back. Two calls per carrier is the safe sequence when the market is still
+ * unknown, but it stops being safe and starts being slow once either condition
+ * holds: the offer met the rate the operator said to take, or everyone else has
+ * already answered and this is what the market produced.
+ */
+export function mayCloseOnQuote(
+  snapshot: Pick<OperationSnapshot, "offers" | "carriers" | "calls" | "mandate">,
+  offerId: string,
+): { allowed: boolean; reason: string } {
+  const offer = snapshot.offers.find((item) => item.id === offerId);
+  if (!offer) return { allowed: false, reason: "offer_not_found" };
+  if (!offer.eligible) return { allowed: false, reason: "offer_outside_mandate" };
+
+  const standing = winner(snapshot);
+  if (!standing || standing.id !== offer.id) return { allowed: false, reason: "not_the_standing_winner" };
+
+  if (offer.amount <= snapshot.mandate.targetRate) {
+    return { allowed: true, reason: "met_target_rate" };
+  }
+
+  const others = snapshot.carriers.filter((carrier) => carrier.id !== offer.carrierId);
+  const settled = others.every((carrier) =>
+    snapshot.calls.some(
+      (call) =>
+        call.carrierId === carrier.id &&
+        call.mode === "QUOTE" &&
+        ["COMPLETED", "FAILED"].includes(call.status),
+    ),
+  );
+  return settled
+    ? { allowed: true, reason: "market_settled" }
+    : { allowed: false, reason: "market_still_open" };
+}

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { winner } from "@/lib/domain/policy";
+import { mayCloseOnQuote, winner } from "@/lib/domain/policy";
 import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
 import { getStore } from "@/lib/store";
 
@@ -167,6 +167,25 @@ export async function executeTool(name: string, rawArguments: unknown): Promise<
     }
     case "stage_booking": {
       const input = schemas.stage_booking.parse(rawArguments);
+      const snapshot = await store.getSnapshot(input.operationId);
+      const call = snapshot.calls.find((item) => item.id === input.callId);
+
+      // A quote call may close the deal, but only when the engine says the
+      // market no longer justifies calling back.
+      if (call?.mode === "QUOTE") {
+        const verdict = mayCloseOnQuote(snapshot, input.offerId);
+        if (!verdict.allowed) {
+          return {
+            staged: false,
+            reason: verdict.reason,
+            instruction:
+              verdict.reason === "market_still_open"
+                ? "Other carriers have not answered yet. Finish this as a quote and say a decision follows shortly."
+                : "This offer cannot be booked. Keep it as a quote.",
+          };
+        }
+      }
+
       const result = await store.stageBooking(input.operationId, input.offerId, input.callId);
       return {
         commitmentId: result.commitment.id,

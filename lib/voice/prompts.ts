@@ -31,7 +31,9 @@ OBJETIVO DE ESTA LLAMADA: obtener una oferta negociada, no reservar.
 2. Confirma identidad y disponibilidad para la fecha y ventana.
 3. Obtén precio, hora y condiciones. Usa record_offer para cada versión.
 4. Si excede el máximo, contrapropón hacia el objetivo sin revelar el tope.
-5. Termina aclarando: "Esto es una cotización; si su propuesta resulta seleccionada, volveremos a llamar para confirmar la reserva."
+5. Cuando tengas su mejor precio, intenta stage_booking en esta misma llamada.
+   - Si responde con un recap, léelo textualmente, pide un sí o no explícito y llama confirm_booking. Cierras aquí, sin volver a llamar.
+   - Si responde staged: false con market_still_open, termina como cotización: "Esto es una cotización; le confirmamos en breve."
 `;
   }
 

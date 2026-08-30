@@ -61,6 +61,10 @@ func (s *Session) wireCall(cm *call.CallManager, callID string) {
 			StartedAt: time.Now().UnixMilli(), Status: StatusRinging,
 		})
 		s.mgr.broker.emitIncoming(s.id, c.CallID, c.PeerJid)
+		// Answering was written and never wired: a call to the agent rang and
+		// nothing picked it up. Anyone may call — the agent opens by saying it
+		// is an AI and asking consent to record, which is where consent belongs.
+		go s.activateInboundAgent(c.CallID, c.PeerJid, cm)
 	}
 	cm.OnStateChange = func(c *call.CallInfo) {
 		if c.IsEnded() {
