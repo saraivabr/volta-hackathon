@@ -41,7 +41,7 @@ export interface UpdateCallInput {
   twilioCallSid?: string | null;
   twilioAgentCallSid?: string | null;
   openaiCallId?: string | null;
-  provider?: "TWILIO" | "WHATSAPP";
+  provider?: "TWILIO" | "WHATSAPP" | "TELNYX";
   providerCallId?: string | null;
   startedAt?: string | null;
   endedAt?: string | null;

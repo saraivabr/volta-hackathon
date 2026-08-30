@@ -1,7 +1,8 @@
 import { winner } from "@/lib/domain/policy";
 import { getStore } from "@/lib/store";
 import { dialHumanTakeover } from "@/lib/providers/twilio";
-import { dialVoiceCall, isVoiceConfigured, voiceTransport } from "@/lib/providers/voice";
+import { dialVoiceCall, isVoiceConfigured, voiceProviderTag, voiceTransport } from "@/lib/providers/voice";
+import { referCallToOperator } from "@/lib/providers/telnyx";
 
 const demoOffers = [
   { carrierId: "carrier-azul", amount: 8900, pickupDate: "2026-09-03", pickupTime: "11:00" },
@@ -28,7 +29,7 @@ export async function startMarketScan(operationId: string) {
             status: "RINGING",
             twilioCallSid: legs.carrierCallSid,
             twilioAgentCallSid: legs.agentCallSid,
-            provider: voiceTransport() === "whatsapp" ? "WHATSAPP" : "TWILIO",
+            provider: voiceProviderTag(),
             providerCallId: legs.carrierCallSid,
           });
         } catch (error) {
@@ -79,7 +80,7 @@ export async function startSingleQuoteCall(operationId: string, carrierId: strin
       status: "RINGING",
       twilioCallSid: legs.carrierCallSid,
       twilioAgentCallSid: legs.agentCallSid,
-      provider: voiceTransport() === "whatsapp" ? "WHATSAPP" : "TWILIO",
+      provider: voiceProviderTag(),
       providerCallId: legs.carrierCallSid,
     });
   } catch (error) {
@@ -103,7 +104,7 @@ export async function bookWinningOffer(operationId: string) {
       status: "RINGING",
       twilioCallSid: legs.carrierCallSid,
       twilioAgentCallSid: legs.agentCallSid,
-      provider: voiceTransport() === "whatsapp" ? "WHATSAPP" : "TWILIO",
+      provider: voiceProviderTag(),
       providerCallId: legs.carrierCallSid,
     });
   } else {
@@ -141,10 +142,17 @@ export async function takeOver(operationId: string) {
   if (!call) throw new Error("Escalated call not found");
   await store.updateEscalation(escalation.id, "DIALING");
   if (isVoiceConfigured() && process.env.VOLTA_DEMO_MODE !== "true") {
-    if (voiceTransport() === "whatsapp") {
-      throw new Error("WhatsApp live takeover requires the browser media bridge");
+    switch (voiceTransport()) {
+      case "whatsapp":
+        throw new Error("WhatsApp live takeover requires the browser media bridge");
+      case "telnyx": {
+        if (!call.openaiCallId) throw new Error("The escalated call has no live realtime session");
+        await referCallToOperator(call.openaiCallId);
+        break;
+      }
+      default:
+        await dialHumanTakeover(call);
     }
-    await dialHumanTakeover(call);
   } else {
     await store.updateEscalation(escalation.id, "CONNECTED");
   }

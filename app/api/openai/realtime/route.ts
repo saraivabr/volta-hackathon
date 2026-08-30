@@ -1,6 +1,7 @@
 import { acceptRealtimeCall, unwrapOpenAIWebhook } from "@/lib/providers/openai-realtime";
 import { getStore } from "@/lib/store";
 import { registerWebhookReceipt } from "@/lib/webhooks/idempotency";
+import type { CallAttempt, OperationSnapshot } from "@/lib/domain/types";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,48 @@ interface IncomingCallEvent {
 }
 
 function headerValue(event: IncomingCallEvent, name: string): string | null {
-  return event.data?.sip_headers?.find((header) => header.name.toLowerCase() === name.toLowerCase())?.value ?? null;
+  return (
+    event.data?.sip_headers?.find((header) => header.name.toLowerCase() === name.toLowerCase())
+      ?.value ?? null
+  );
+}
+
+function digits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+/**
+ * A leg Volta dialled carries X-Volta-Call-Id. A cold call — the number handed
+ * to a judge, or a dispatcher ringing back — carries nothing, so the operation
+ * is bound here instead of dropping the call.
+ */
+async function resolveInboundCall(
+  event: IncomingCallEvent,
+  snapshot: OperationSnapshot,
+): Promise<CallAttempt> {
+  const store = getStore();
+  const from = headerValue(event, "From") ?? "";
+  const fromDigits = digits(from);
+  const carrier = fromDigits
+    ? snapshot.carriers.find((item) => digits(item.phoneE164) === fromDigits)
+    : undefined;
+
+  const call = await store.createCall({
+    operationId: snapshot.operation.id,
+    carrierId: carrier?.id ?? null,
+    mode: "INBOUND",
+  });
+  await store.addEvent({
+    operationId: snapshot.operation.id,
+    callId: call.id,
+    type: "inbound.unattributed",
+    severity: carrier ? "SUCCESS" : "WARNING",
+    summary: carrier
+      ? `Inbound SIP call matched to ${carrier.name}`
+      : "Inbound SIP call from an unrecognised number; the mandate still governs the conversation",
+    payload: { from: from || null, carrierId: carrier?.id ?? null },
+  });
+  return call;
 }
 
 export async function POST(request: Request) {
@@ -24,14 +66,15 @@ export async function POST(request: Request) {
     if (webhookId && !(await registerWebhookReceipt("openai", webhookId))) {
       return new Response(null, { status: 200 });
     }
-    if (event.type !== "realtime.call.incoming" || !event.data?.call_id) return new Response(null, { status: 200 });
+    if (event.type !== "realtime.call.incoming" || !event.data?.call_id) {
+      return new Response(null, { status: 200 });
+    }
 
-    const callId = headerValue(event, "X-Volta-Call-Id");
-    if (!callId) return Response.json({ error: "Missing Volta call id" }, { status: 400 });
     const store = getStore();
     const snapshot = await store.getSnapshot();
-    const call = snapshot.calls.find((item) => item.id === callId);
-    if (!call) return Response.json({ error: "Unknown Volta call" }, { status: 404 });
+    const callId = headerValue(event, "X-Volta-Call-Id");
+    const known = callId ? snapshot.calls.find((item) => item.id === callId) : undefined;
+    const call = known ?? (await resolveInboundCall(event, snapshot));
     const carrier = snapshot.carriers.find((item) => item.id === call.carrierId);
 
     await acceptRealtimeCall(event.data.call_id, snapshot, call, carrier);
@@ -41,7 +84,9 @@ export async function POST(request: Request) {
     });
     return new Response(null, { status: 200 });
   } catch (error) {
-    console.error(JSON.stringify({ level: "error", message: "OpenAI webhook failed", error: String(error) }));
+    console.error(
+      JSON.stringify({ level: "error", message: "OpenAI webhook failed", error: String(error) }),
+    );
     return Response.json({ error: "Invalid webhook" }, { status: 400 });
   }
 }

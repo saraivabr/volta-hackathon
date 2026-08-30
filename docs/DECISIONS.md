@@ -79,3 +79,23 @@
 **Why:** The WhatsApp device session and long-lived Realtime/WebRTC sockets require persistent storage and a long-running process. Serverless execution does not fit that lifecycle, and a laptop tunnel is not operationally durable.
 
 **Trade-off:** The VPS becomes a small always-on infrastructure cost and must receive operating-system security updates.
+
+## ADR-009 — Telnyx PSTN as the primary transport, WhatsApp as the fallback
+
+**Decision:** Carry the voice leg over Telnyx (TeXML) and hand the media to the OpenAI Realtime SIP endpoint with `<Dial><Sip>`. `VOLTA_VOICE_TRANSPORT` selects `telnyx`, `whatsapp` or `twilio` behind one dial interface.
+
+**Alternatives:** Twilio (account verification unavailable to the team); a self-hosted Asterisk/FreeSWITCH B2BUA on the existing Azure VPS; WhatsApp Web alone.
+
+**Why:** The challenge requires calls over an actual phone network. Telnyx is a licensed carrier reachable from any phone, and OpenAI already accepts the media over SIP, so no bridge of our own is needed. A self-hosted SIP server would still have required a trunk and would have consumed the remaining build time. WhatsApp Web survives as a rehearsed fallback rather than the primary claim.
+
+**Trade-off:** The trial account cannot dial Brazil, so outbound is limited to US, MX, CA and ES. Inbound is unrestricted, which is what the adversarial evaluation depends on. Upgrading the account removes the outbound limit without touching the code.
+
+## ADR-010 — Inbound calls bind to the operation without a correlation header
+
+**Decision:** When `realtime.call.incoming` arrives without `X-Volta-Call-Id`, create an `INBOUND` call against the current operation, match the caller by number when possible and continue under the mandate.
+
+**Alternatives:** Reject the call (the previous behaviour); restrict inbound to an allowlist of known carrier numbers.
+
+**Why:** The adversarial evaluation has a judge dialling from their own phone. Rejecting an unknown caller failed the single most heavily weighted moment of the demo, and an allowlist cannot be populated in advance with a number nobody knows yet.
+
+**Trade-off:** An unrecognised caller reaches the agent. Authority is unaffected — the mandate engine still governs every offer, change and commitment — and the uncertain identity is written to the ledger as a warning.

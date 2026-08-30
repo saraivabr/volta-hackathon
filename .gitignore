@@ -20,3 +20,4 @@ pico.save
 .vercel
 .wrangler/
 workers/**/.dev.vars
+.claude-flow/

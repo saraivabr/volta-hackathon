@@ -1,19 +1,30 @@
 import type { CallAttempt, Carrier } from "@/lib/domain/types";
 import { dialCall as dialTwilioCall, isTwilioConfigured } from "./twilio";
+import { dialCall as dialTelnyxCall, isTelnyxConfigured } from "./telnyx";
 import { dialWhatsAppCall, isWaCallsConfigured } from "./wacalls";
+import { voiceProviderTag, voiceTransport } from "./transport";
 
-export type VoiceTransport = "twilio" | "whatsapp";
-
-export function voiceTransport(): VoiceTransport {
-  return process.env.VOLTA_VOICE_TRANSPORT?.trim() === "whatsapp" ? "whatsapp" : "twilio";
-}
+export { voiceProviderTag, voiceTransport };
+export type { VoiceProviderTag, VoiceTransport } from "./transport";
 
 export function isVoiceConfigured() {
-  return voiceTransport() === "whatsapp" ? isWaCallsConfigured() : isTwilioConfigured();
+  switch (voiceTransport()) {
+    case "whatsapp":
+      return isWaCallsConfigured();
+    case "telnyx":
+      return isTelnyxConfigured();
+    default:
+      return isTwilioConfigured();
+  }
 }
 
 export async function dialVoiceCall(call: CallAttempt, carrier: Carrier) {
-  return voiceTransport() === "whatsapp"
-    ? dialWhatsAppCall(call, carrier)
-    : dialTwilioCall(call, carrier);
+  switch (voiceTransport()) {
+    case "whatsapp":
+      return dialWhatsAppCall(call, carrier);
+    case "telnyx":
+      return dialTelnyxCall(call, carrier);
+    default:
+      return dialTwilioCall(call, carrier);
+  }
 }

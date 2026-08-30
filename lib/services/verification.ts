@@ -4,6 +4,7 @@ import { openAIClient } from "@/lib/providers/openai-realtime";
 import { isTwilioConfigured, twilioClient } from "@/lib/providers/twilio";
 import { publicBaseUrl } from "@/lib/server/secrets";
 import { sendWhatsAppText } from "@/lib/providers/wacalls";
+import { sendTelnyxSms } from "@/lib/providers/telnyx";
 import { voiceTransport } from "@/lib/providers/voice";
 import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
 import { downloadRecording } from "@/lib/server/recording-storage";
@@ -18,11 +19,10 @@ export async function sendCommitmentRecap(callId: string) {
   const carrier = snapshot.carriers.find((item) => item.id === commitment.carrierId);
   if (!carrier) throw new Error("Commitment carrier not found");
 
+  const recapBody = `${commitment.recapText} Responde CORRECCIÓN si algún dato no coincide.`;
+
   if (voiceTransport() === "whatsapp") {
-    const message = await sendWhatsAppText(
-      carrier.phoneE164,
-      `${commitment.recapText} Responde CORRECCIÓN si algún dato no coincide.`,
-    );
+    const message = await sendWhatsAppText(carrier.phoneE164, recapBody);
     await store.markRecapSent(commitment.id, `WA_${message.messageId}`);
     await store.addEvent({
       operationId: commitment.operationId,
@@ -30,6 +30,20 @@ export async function sendCommitmentRecap(callId: string) {
       type: "recap.sent",
       severity: "SUCCESS",
       summary: "Written recap sent by WhatsApp",
+      payload: { messageId: message.messageId },
+    });
+    return commitment;
+  }
+
+  if (voiceTransport() === "telnyx") {
+    const message = await sendTelnyxSms(carrier.phoneE164, recapBody);
+    await store.markRecapSent(commitment.id, `TX_${message.messageId}`);
+    await store.addEvent({
+      operationId: commitment.operationId,
+      callId,
+      type: "recap.sent",
+      severity: "SUCCESS",
+      summary: "Written recap sent by SMS",
       payload: { messageId: message.messageId },
     });
     return commitment;
@@ -74,6 +88,13 @@ export async function processRecording(callId: string, recordingUrl: string) {
   if (recordingUrl.startsWith("supabase://")) {
     const stored = await downloadRecording(recordingUrl);
     bytes = stored.bytes;
+    filename = `${callId}.wav`;
+  } else if (voiceTransport() === "telnyx") {
+    const mediaResponse = await fetch(recordingUrl, {
+      headers: { Authorization: `Bearer ${process.env.TELNYX_API_KEY?.trim() ?? ""}` },
+    });
+    if (!mediaResponse.ok) throw new Error(`Recording download failed (${mediaResponse.status})`);
+    bytes = Buffer.from(await mediaResponse.arrayBuffer());
     filename = `${callId}.wav`;
   } else {
     const auth = Buffer.from(

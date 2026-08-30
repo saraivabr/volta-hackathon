@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { transitionCommitment } from "@/lib/domain/commitment";
 import { assertOfferBookable, evaluateOffer, winner } from "@/lib/domain/policy";
+import { voiceProviderTag } from "@/lib/providers/transport";
 import type {
   CallAttempt,
   Commitment,
@@ -99,7 +100,7 @@ export abstract class BaseSnapshotStore implements VoltaStore {
         twilioCallSid: null,
         twilioAgentCallSid: null,
         openaiCallId: null,
-        provider: process.env.VOLTA_VOICE_TRANSPORT === "whatsapp" ? "WHATSAPP" : "TWILIO",
+        provider: voiceProviderTag(),
         providerCallId: null,
         startedAt: null,
         endedAt: null,
