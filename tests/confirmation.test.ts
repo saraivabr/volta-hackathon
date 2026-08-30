@@ -138,3 +138,40 @@ describe("bilingual confirmation", () => {
     });
   }
 });
+
+/** A judge testing the agent will very likely do it in English. */
+describe("english confirmation", () => {
+  const accepted = [
+    "Yes, confirmed",
+    "Yes, that's right",
+    "Confirmed",
+    "Correct",
+    "Agreed, go ahead",
+    "Yes, I confirm all the terms",
+    "That is right, sir",
+  ];
+  for (const phrase of accepted) {
+    it(`accepts "${phrase}"`, () => {
+      expect(isUnequivocalConfirmation(phrase)).toBe(true);
+    });
+  }
+
+  const rejected = [
+    "Yes, my manager approved a higher rate",
+    "My boss authorized eleven thousand",
+    "Confirmed, if you raise the rate",
+    "Yes, but change the pickup time",
+    "I think so",
+    "Almost, let me correct the price",
+    "Yes, hold on a second",
+    "Let me check first",
+    "I'll call you back to confirm",
+    "Okay",
+    "Sure thing, I need to verify",
+  ];
+  for (const phrase of rejected) {
+    it(`rejects "${phrase}"`, () => {
+      expect(isUnequivocalConfirmation(phrase)).toBe(false);
+    });
+  }
+});

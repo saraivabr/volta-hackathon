@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import type { CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/domain/types";
+import type { OperationLanguage, CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/domain/types";
 import { latestOffers, rankOffers } from "@/lib/domain/policy";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 import { openWhatsAppTakeover } from "@/lib/client/wacalls-takeover";
@@ -106,6 +106,7 @@ function briefingFromSnapshot(snapshot: OperationSnapshot) {
     pickupWindowStart: snapshot.operation.pickupWindowStart,
     pickupWindowEnd: snapshot.operation.pickupWindowEnd,
     handoffPhoneE164: snapshot.operation.handoffPhoneE164 ?? "",
+    language: snapshot.operation.language ?? "es",
     targetRate: snapshot.mandate.targetRate,
     maximumRate: snapshot.mandate.maximumRate,
     negotiateRate: snapshot.mandate.negotiateRate,
@@ -246,6 +247,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     const checked = (name: string) => field(name)?.checked ?? false;
     return {
       handoffPhoneE164: text("handoffPhoneE164"),
+      language: (text("language") || "es") as OperationLanguage,
       reference: text("reference"),
       customer: text("customer"),
       containerReference: text("containerReference"),
@@ -447,6 +449,27 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
             <span className="micro-label">Route</span>
             <label className="wide-field"><span>Pickup location</span><input name="pickupLocation" disabled={!editing} value={form.pickupLocation} onChange={(e) => updateBriefing("pickupLocation", e.target.value)} /></label>
             <label className="wide-field"><span>Delivery location</span><input name="deliveryLocation" disabled={!editing} value={form.deliveryLocation} onChange={(e) => updateBriefing("deliveryLocation", e.target.value)} /></label>
+          </div>
+
+          <div className="briefing-group">
+            <span className="micro-label">Conversation</span>
+            <label className="wide-field">
+              <span>Language</span>
+              <select
+                name="language"
+                disabled={!editing}
+                value={form.language}
+                onChange={(e) => updateBriefing("language", e.target.value as OperationLanguage)}
+              >
+                <option value="es">Español</option>
+                <option value="pt">Português</option>
+                <option value="en">English</option>
+              </select>
+            </label>
+            <p className="field-note">
+              The language the agent opens in, and the hint the transcriber runs with. It follows a
+              counterparty who answers in another one.
+            </p>
           </div>
 
           <div className="briefing-group">

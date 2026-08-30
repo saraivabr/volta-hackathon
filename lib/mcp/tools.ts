@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { mayCloseOnQuote, winner } from "@/lib/domain/policy";
-import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
+import { judgeConfirmation } from "@/lib/services/confirmation-judge";
 import { getStore } from "@/lib/store";
 
 export const toolDefinitions = [
@@ -196,22 +196,36 @@ export async function executeTool(name: string, rawArguments: unknown): Promise<
     }
     case "confirm_booking": {
       const input = schemas.confirm_booking.parse(rawArguments);
-      if (!isUnequivocalConfirmation(input.confirmationText)) {
-        const snapshot = await store.getSnapshot();
-        if (snapshot.commitment) {
+      const pending = await store.getSnapshot();
+      const judgement = await judgeConfirmation(
+        pending.commitment?.recapText ?? "",
+        input.confirmationText,
+      );
+      if (judgement.verdict !== "CONFIRMS") {
+        if (pending.commitment) {
           await store.recordDecision({
-            operationId: snapshot.commitment.operationId,
-            callId: snapshot.commitment.bookingCallId,
+            operationId: pending.commitment.operationId,
+            callId: pending.commitment.bookingCallId,
             kind: "AMBIGUOUS_CONFIRMATION",
             outcome: "BLOCK",
-            rationale: "The spoken answer was not an unequivocal confirmation of the canonical terms.",
-            reasonCodes: ["ambiguous_confirmation"],
+            rationale: `Answer judged ${judgement.verdict.toLowerCase()} against the canonical terms: ${judgement.reason}.`,
+            reasonCodes: [judgement.verdict.toLowerCase(), judgement.source.toLowerCase()],
             source: "COMMITMENT_ENGINE",
-            relatedOfferId: snapshot.commitment.offerId,
-            idempotencyKey: `commitment:${snapshot.commitment.id}:ambiguous:${input.confirmationText.toLowerCase().slice(0, 80)}`,
+            relatedOfferId: pending.commitment.offerId,
+            idempotencyKey: `commitment:${pending.commitment.id}:ambiguous:${input.confirmationText.toLowerCase().slice(0, 80)}`,
           });
         }
-        return { accepted: false, reason: "ambiguous_confirmation" };
+        return {
+          accepted: false,
+          reason: judgement.verdict === "CONDITIONAL" ? "conditional_agreement" : "ambiguous_confirmation",
+          // The agent needs to know what to do next, not just that it failed.
+          instruction:
+            judgement.verdict === "REFUSES"
+              ? "They declined. Ask what they need changed, or close the call without a commitment."
+              : judgement.verdict === "CONDITIONAL"
+                ? "They attached a condition. Handle it as a new offer, not a confirmation."
+                : "Read the recap once more and ask plainly whether they confirm those exact terms.",
+        };
       }
       const commitment = await store.confirmBooking(input.commitmentId, input.confirmationToken);
       return {

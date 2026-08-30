@@ -1,4 +1,27 @@
-import type { CallAttempt, Carrier, OperationSnapshot } from "@/lib/domain/types";
+import type {
+  CallAttempt,
+  Carrier,
+  OperationLanguage,
+  OperationSnapshot,
+} from "@/lib/domain/types";
+
+const LANGUAGE_NAMES: Record<OperationLanguage, string> = {
+  es: "español mexicano",
+  pt: "português brasileiro",
+  en: "English",
+};
+
+/**
+ * The counterparty picks the language, not us. The operation names the one to
+ * open in, and whoever answers may reply in another — a Brazilian dispatcher on
+ * a Mexican lane, a judge testing in English. Following them costs nothing and
+ * refusing to costs the call.
+ */
+function languageRule(language: OperationLanguage) {
+  return `- Empieza en ${LANGUAGE_NAMES[language]}, con turnos cortos y sin jerga robótica.
+- Si la persona responde en otro idioma (portugués, inglés, español), cambia a ese idioma de inmediato y sigue en él toda la llamada. Nunca le pidas que cambie de idioma ni le digas que no entiendes por el idioma.
+- El recap final y la confirmación deben decirse en el idioma que esté usando la persona.`;
+}
 
 const invariants = `
 REGLAS DE AUTORIDAD — SON INVIOLABLES:
@@ -9,10 +32,10 @@ REGLAS DE AUTORIDAD — SON INVIOLABLES:
 - Si la persona te interrumpe, deja de hablar inmediatamente y escucha.
 - Tras 5 segundos de silencio confirma presencia; a los 15 segundos pregunta una vez más; a los 30 segundos termina de forma segura.
 - No afirmes que una operación está reservada hasta que confirm_booking responda accepted.
-- Habla en español mexicano natural, con turnos cortos y sin jerga robótica.
 `;
 
 export function buildCallPrompt(snapshot: OperationSnapshot, call: CallAttempt, carrier?: Carrier) {
+  const language = languageRule(snapshot.operation.language);
   const context = `
 OPERACIÓN: ${snapshot.operation.reference}
 RUTA: ${snapshot.operation.pickupLocation} a ${snapshot.operation.deliveryLocation}
@@ -25,7 +48,8 @@ CALL_ID: ${call.id}; OPERATION_ID: ${snapshot.operation.id}; CARRIER_ID: ${carri
 `;
 
   if (call.mode === "QUOTE") {
-    return `${invariants}${context}
+    return `${invariants}${language}
+${context}
 OBJETIVO DE ESTA LLAMADA: obtener una oferta negociada, no reservar.
 1. Empieza: "Hola, soy Volta, el asistente de operaciones con inteligencia artificial de Textiles Pacífico. Esta llamada puede ser grabada para confirmar lo acordado."
 2. Confirma identidad y disponibilidad para la fecha y ventana.
@@ -38,7 +62,8 @@ OBJETIVO DE ESTA LLAMADA: obtener una oferta negociada, no reservar.
   }
 
   if (call.mode === "BOOKING") {
-    return `${invariants}${context}
+    return `${invariants}${language}
+${context}
 OBJETIVO DE ESTA LLAMADA: confirmar solamente la oferta ganadora.
 1. Identifícate como IA e informa la grabación.
 2. Llama get_operation_context y después stage_booking con la oferta indicada por el sistema.
@@ -49,7 +74,8 @@ OBJETIVO DE ESTA LLAMADA: confirmar solamente la oferta ganadora.
   }
 
   if (call.mode === "RENEGOTIATION") {
-    return `${invariants}${context}
+    return `${invariants}${language}
+${context}
 ACUERDO ANTERIOR (ya no vigente): ${snapshot.commitment?.recapText ?? "sin registro"}
 OBJETIVO DE ESTA LLAMADA: el briefing del cliente cambió después de que ya habían acordado. Vuelves a llamar para renegociar.
 1. Identifícate como IA e informa que la llamada puede ser grabada.
@@ -61,7 +87,8 @@ OBJETIVO DE ESTA LLAMADA: el briefing del cliente cambió después de que ya hab
 `;
   }
 
-  return `${invariants}${context}
+  return `${invariants}${language}
+${context}
 OBJETIVO DE ESTA LLAMADA ENTRANTE: entender el cambio sin modificar el acuerdo fuera del mandato.
 1. Identifícate como IA e informa la grabación.
 2. Confirma identidad y referencia de operación.

@@ -18,6 +18,7 @@ const patchSchema = z.object({
   pickupWindowStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   pickupWindowEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   handoffPhoneE164: z.union([z.string().regex(/^\+[1-9]\d{7,14}$/), z.literal("")]).optional(),
+  language: z.enum(["es", "pt", "en"]).optional(),
   targetRate: z.number().positive().optional(),
   maximumRate: z.number().positive().optional(),
   negotiateRate: z.boolean().optional(),

@@ -269,3 +269,25 @@
 **Why:** Consent runs one way. The allowlist exists so this service does not ring people who never agreed to be rung; someone who dials in has already made that choice, and the agent opens by saying it is an AI and asking permission to record. Gating inbound on an outbound list rejected every caller who was not already known — including the judge a trial by fire is built around, who cannot be added in advance.
 
 **Trade-off:** Anyone who has the number reaches the agent. The mandate governs the conversation regardless, and an unrecognised caller is written to the ledger as a warning. `WACALLS_INBOUND_OPEN=false` restores the old behaviour.
+
+## ADR-028 — A classifier proposes, the rules veto
+
+**Decision:** `confirm_booking` no longer matches the reply against a word list. A separate server-side classifier reads the reply against the exact recap that was spoken and returns CONFIRMS, REFUSES, CONDITIONAL or AMBIGUOUS. The deterministic rules stay in front of it as a veto: an answer that borrows someone else's authority or attaches a condition never reaches the classifier, whatever it would have said.
+
+**Alternatives:** Keep widening the vocabulary; let the conversing agent report whether it was confirmed.
+
+**Why:** The word list was the wrong shape for the job, not merely short. It refused "sim, confirmo" for holding a word it had never been taught, and every fix taught it one more word while the next real sentence failed the same way — an operator tried a dozen phrasings on live calls and got `ambiguous_confirmation` on all of them. People confirm in sentences nobody wrote down first. Automated tests could not surface this either, because the phrases in them were the phrases the list already knew.
+
+Letting the conversing agent decide was never an option: an agent that certifies its own success is the failure this whole design exists to prevent. A separate classifier, run server-side against the canonical terms and written to the ledger with its reason, keeps the decision away from the conversation while giving it the flexibility the job needs.
+
+**Trade-off:** A model call now sits in the booking path — one more thing that can be slow or down. It fails closed: an unreachable classifier falls back to the strict rules, which refuse rather than accept. The verdict is a judgement, so it can be wrong in both directions; the veto bounds the expensive direction, and every verdict is recorded with the reason that produced it.
+
+## ADR-029 — The counterparty picks the language
+
+**Decision:** The operation names a language (`es`, `pt`, `en`) set in the briefing. It seeds the transcriber's hint and the agent's opening. The agent switches to whatever language the counterparty answers in and stays there, including for the recap.
+
+**Alternatives:** Conduct every call in Mexican Spanish; leave the transcriber to auto-detect.
+
+**Why:** Auto-detection was the actual cause of a stalled demo. With no hint, the transcriber picks a language per utterance, and on short 16 kHz call audio it picked Czech, Korean and Italian in one call — so the engine judged nonsense and refused every answer, correctly. A hint fixes that, but a single hard-coded one is wrong for a different reason: the lane is Mexican, the carriers answering it are often Brazilian, and a judge is likely to test in English. Refusing to follow someone into their own language costs the call for nothing.
+
+**Trade-off:** The hint is per-session, so a counterparty who switches mid-call is transcribed with the opening language's bias. The agent still follows them by voice, and the classifier judges intent rather than spelling, so the booking path tolerates the mismatch better than a word list would have.

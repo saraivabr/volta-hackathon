@@ -29,6 +29,7 @@ const now = () => new Date().toISOString();
 const hashToken = (value: string) => createHash("sha256").update(value).digest("hex");
 
 function normalizeSnapshot(snapshot: OperationSnapshot): OperationSnapshot {
+  snapshot.operation.language ??= "es";
   snapshot.transcripts ??= [];
   snapshot.decisions ??= [];
   snapshot.callBriefs ??= [];

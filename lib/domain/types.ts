@@ -29,6 +29,14 @@ export type Severity = "INFO" | "SUCCESS" | "WARNING" | "DANGER";
 export type TranscriptSpeaker = "AGENT" | "COUNTERPARTY";
 export type DecisionOutcome = "ALLOW" | "BLOCK" | "SELECT" | "ESCALATE" | "OBSERVE";
 
+/**
+ * The language the operation is conducted in. It sets the transcriber's hint —
+ * without one it guesses per utterance and, on noisy call audio, guesses
+ * Czech — and it tells the agent which language to open in. The agent still
+ * follows a counterparty who answers in another one.
+ */
+export type OperationLanguage = "es" | "pt" | "en";
+
 export interface Operation {
   id: string;
   reference: string;
@@ -41,6 +49,7 @@ export interface Operation {
   pickupWindowEnd: string;
   /** Who the agent calls when it hits the edge of its authority. */
   handoffPhoneE164: string | null;
+  language: OperationLanguage;
   status: OperationStatus;
   createdAt: string;
   updatedAt: string;

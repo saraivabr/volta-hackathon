@@ -16,6 +16,7 @@ export function createSeedSnapshot(): OperationSnapshot {
       pickupWindowStart: "08:00",
       pickupWindowEnd: "16:00",
       handoffPhoneE164: null,
+      language: "es",
       status: "DRAFT",
       createdAt: now,
       updatedAt: now,

@@ -139,9 +139,11 @@ button { color: inherit; }
 .field-grid label:first-child { grid-column: 1 / -1; }
 .field-grid.two-columns label:first-child { grid-column: auto; }
 label > span, .carrier-config > span { display: block; color: var(--muted); font: var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .09em; margin-bottom: var(--space-2); }
-input { width: 100%; border: 1px solid var(--line); background: var(--panel); color: var(--paper); padding: var(--space-3); outline: none; font: var(--fs-body) var(--font-mono); }
-input:focus { border-color: var(--lime); }
-input:disabled { opacity: .8; border-color: var(--line-soft); color: #c6cac2; }
+input, select { width: 100%; border: 1px solid var(--line); background: var(--panel); color: var(--paper); padding: var(--space-3); outline: none; font: var(--fs-body) var(--font-mono); }
+input:focus, select:focus { border-color: var(--lime); }
+input:disabled, select:disabled { opacity: .8; border-color: var(--line-soft); color: #c6cac2; }
+select { appearance: none; cursor: pointer; }
+select:disabled { cursor: default; }
 .rate-block { display: grid; grid-template-columns: 1fr 20px 1fr; align-items: end; gap: var(--space-3); margin: var(--space-5) 0; }
 .rate-block > svg { margin-bottom: var(--space-4); color: var(--muted); }
 .money-input { position: relative; }
