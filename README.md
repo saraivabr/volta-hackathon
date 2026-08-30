@@ -65,6 +65,36 @@ WaCalls uses an unofficial WhatsApp Web transport. Use a dedicated account, expl
 - A commitment still requires explicit confirmation, written recap and linked evidence.
 - Inbound calls from allowlisted carriers are correlated automatically; an unauthorized change opens a live browser-microphone takeover without ending the call.
 
+### What enforces each limit
+
+The operator sets seven limits in the briefing. None of them is a request to the
+model — each is checked server-side, on every offer or change the agent submits.
+
+| Limit | Enforced by | Refusal |
+|---|---|---|
+| `currency` | `evaluateOffer` | `currency_mismatch` |
+| `maximumRate` | `evaluateOffer`, `report_operational_change` | `rate_above_mandate` |
+| pickup day | `evaluateOffer` | `pickup_day_outside_mandate` |
+| pickup window | `evaluateOffer` | `pickup_time_outside_window` |
+| `acceptAccessorials` | `evaluateOffer` | `unsupported_accessorial` |
+| `maximumCounters` | `evaluateOffer`, per carrier revision count | `counter_limit_exhausted` |
+| `negotiateRate` | `counterBudget` — withholding it allows the opening quote only | `rate_negotiation_not_authorized` |
+| `changePickupDay` | `report_operational_change` | `pickup_day_change_not_authorized` |
+
+`targetRate` is guidance the agent negotiates toward; the ceiling is what binds.
+An offer that restates the standing terms returns the existing revision, so a
+retried tool call cannot spend a counter.
+
+### What counts as a yes
+
+A booking advances only on an answer that opens on an affirmative, carries no
+qualifier and stays short. The vocabulary is wide on purpose — `sí señor` and
+`correcto, procedemos` are how dispatchers actually speak, and refusing them
+reads as a broken agent. The shape stays narrow: `sí, pero cambia el horario`
+and `sí, mi jefe ya aprobó diez mil quinientos` do not get through. The same
+matcher locates the confirming segment inside the recording, so what the engine
+accepts is also what the evidence has to show.
+
 ## Verification
 
 ```bash
@@ -72,6 +102,8 @@ pnpm check
 pnpm exec playwright install chromium
 pnpm test:e2e
 ```
+
+71 unit tests cover the mandate engine, the counter budget end to end through the store, the commitment state machine and thirty phrases a dispatcher might actually say.
 
 The UI never labels an outcome committed until explicit verbal confirmation, a written recap and timestamped audio evidence all exist.
 
