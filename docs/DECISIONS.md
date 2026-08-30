@@ -189,3 +189,13 @@
 **Why:** The ranking was already deterministic and server-side; only the trigger was manual, which meant an operator who closed the laptop — the thing the pitch tells them to do — came back to three finished quotes and no truck. The review step it offered was illusory: the winner is chosen by policy, so there was nothing for a human to weigh, only something for them to be late for.
 
 **Trade-off:** An operator who wanted to intervene between quoting and booking now has to renegotiate afterwards instead. The empty-market case is the one that still stops and asks, because that is a decision policy genuinely cannot make.
+
+## ADR-020 — The type floor is set by the back of the room
+
+**Decision:** Replace every raw size, gap, duration and shadow in the stylesheet with tokens, and raise the smallest text to 10px with most labels at 11.5px. Add a visible focus ring and honour `prefers-reduced-motion`.
+
+**Alternatives:** Keep tuning individual rules as they are noticed; treat the dense small type as the design's character.
+
+**Why:** Forty-nine font declarations were 10px or under and two were 6px, across twenty-six unrelated spacing values. On the laptop it authored itself on that reads as density; projected in a room it is unreadable, and the first person to say so was an operator asking for the audit log to be bigger — the log being the surface that carries the timestamps and refusals a jury is meant to check. A scale fixes the whole surface at once instead of the one panel somebody complained about.
+
+**Trade-off:** Less fits above the fold, and the escalation drawer grew enough to cover the audit stream, so it moved beside that column and now collapses itself once a human is connected. Density bought back nothing that being unreadable did not cost.

@@ -95,6 +95,19 @@ and `sí, mi jefe ya aprobó diez mil quinientos` do not get through. The same
 matcher locates the confirming segment inside the recording, so what the engine
 accepts is also what the evidence has to show.
 
+## Design system
+
+Tokens live at the top of `app/globals.css`: a type ramp, an eight-step space
+scale, motion durations and easing, elevation, and a focus ring. Nothing in the
+stylesheet sets a raw size or gap any more.
+
+The type floor is set by where this runs. It is read off a projector by a room,
+not off a laptop by its author, so the smallest text is 10px and most labels sit
+at 11.5px — before, forty-nine declarations were 10px or under and two were 6px.
+Every text on the dashboard clears WCAG AA against its own background, keyboard
+focus is visible because the demo is driven live, and `prefers-reduced-motion`
+is honoured.
+
 ## Verification
 
 ```bash

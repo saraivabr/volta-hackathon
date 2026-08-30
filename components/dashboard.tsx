@@ -123,6 +123,14 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
   const [escalationOpen, setEscalationOpen] = useState(true);
+  const escalationStatus = snapshot.escalation?.status;
+  // It demands the screen while somebody still has to act. Once a human is on
+  // the line the action is done, so it steps back off the market comparison
+  // rather than waiting to be dismissed.
+  useEffect(() => {
+    if (escalationStatus === "CONNECTED") setEscalationOpen(false);
+    if (escalationStatus === "OPEN") setEscalationOpen(true);
+  }, [escalationStatus]);
   const [editing, setEditing] = useState(false);
   const [whatsapp, setWhatsApp] = useState<WhatsAppStatus | null>(null);
   const [form, setForm] = useState(() => briefingFromSnapshot(initialSnapshot));
