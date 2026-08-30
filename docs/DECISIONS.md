@@ -139,3 +139,13 @@
 **Why:** The previous matcher accepted `sí`, `confirmo`, `de acuerdo` and `correcto` and nothing else — a dispatcher saying "sí señor" or "correcto, procedemos" was refused. That reads as a broken agent rather than a careful one, and the same matcher locates the confirming segment in the recording, so a natural yes also produced no audio evidence. Widening the vocabulary while holding the shape keeps "sí, pero cambia el horario" and "sí, mi jefe ya aprobó" out.
 
 **Trade-off:** A yes buried in a long sentence is refused. Asking again costs a turn; accepting an argument as consent costs the commitment.
+
+## ADR-015 — Acknowledgement is not agreement
+
+**Decision:** A confirmation must contain an actual affirmative — `sí`, `correcto`, `confirmo`, `de acuerdo`. Back-channel — `okay`, `vale`, `listo`, `perfecto`, `adelante` — is allowed around one but never counts as one on its own. Evidence may not be attached to a commitment still in `PROPOSED`.
+
+**Alternatives:** Keep the wider opener list; let the model decide whether an utterance was consent.
+
+**Why:** Widening the vocabulary to stop refusing real dispatchers went one step too far and swept in acknowledgement. On a live call the recording pipeline then anchored audio evidence to the counterparty saying "Okay" eighty-three seconds in, on a booking nobody had confirmed. Nothing was committed, because the recap had not been sent — but `markRecapSent` completes the chain whenever evidence already exists, so the next step would have committed a booking on the strength of a filler word.
+
+**Trade-off:** A dispatcher whose only answer is "listo" has to be asked again. That costs a turn. The alternative cost a commitment nobody made.

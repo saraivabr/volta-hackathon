@@ -31,10 +31,9 @@ describe("confirmation vocabulary", () => {
     "De acuerdo, confirmado",
     "Confirmo todos los términos",
     "Exacto",
-    "Perfecto, así queda",
-    "Listo",
-    "Órale, sale",
     "Sí, todo bien",
+    "Perfecto, confirmo",
+    "Ok, confirmo",
     "Afirmativo",
   ];
   for (const phrase of accepted) {
@@ -57,6 +56,17 @@ describe("confirmation vocabulary", () => {
     "Sí, sin embargo la fecha cambia",
     "Sí, confirmo si me suben el precio",
     "Hola",
+    // Back-channel. People say these while listening, not to agree to terms.
+    // Treating one as consent once anchored evidence to " Okay." eighty seconds
+    // into a call whose commitment was still PROPOSED.
+    "Okay",
+    " Okay.",
+    "Ok",
+    "Vale",
+    "Listo",
+    "Perfecto",
+    "Órale, sale",
+    "Adelante",
     "",
     "   ",
     "Sí, y también quiero que sepas que el camión sale a las once y el chofer pidió más tiempo",

@@ -469,6 +469,12 @@ export abstract class BaseSnapshotStore implements VoltaStore {
     return this.mutate((snapshot) => {
       const commitment = snapshot.commitment;
       if (!commitment || commitment.id !== commitmentId) throw new Error("Commitment not found");
+      // Evidence is proof of a confirmation. With nothing confirmed there is
+      // nothing to prove, and attaching a segment anyway leaves markRecapSent
+      // free to jump a never-confirmed booking straight to COMMITTED.
+      if (commitment.status === "PROPOSED") {
+        throw new Error("Cannot link evidence before the terms are verbally confirmed");
+      }
       const evidence: Evidence = {
         id: randomUUID(),
         operationId: commitment.operationId,

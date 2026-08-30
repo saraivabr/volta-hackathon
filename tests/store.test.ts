@@ -168,4 +168,33 @@ describe("Volta store", () => {
     });
     expect((await store.getSnapshot()).commitment?.status).toBe("COMMITTED");
   });
+  it("refuses to attach evidence to a booking nobody confirmed", async () => {
+    const snapshot = await store.getSnapshot();
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "BOOKING" });
+    await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 8500,
+      currency: "MXN",
+      pickupDate: snapshot.operation.pickupDate,
+      pickupTime: "10:00",
+    });
+    const current = await store.getSnapshot();
+    const staged = await store.stageBooking("op-2041", current.offers[0].id, call.id);
+
+    // Still PROPOSED: the recap was read but no answer came back.
+    await expect(
+      store.linkEvidence(staged.commitment.id, {
+        callId: call.id,
+        recordingUrl: "/api/recordings/x",
+        storagePath: null,
+        speaker: "A",
+        segmentText: " Okay.",
+        startSeconds: 83.018,
+        endSeconds: 84.568,
+      }),
+    ).rejects.toThrow(/verbally confirmed/i);
+    expect((await store.getSnapshot()).evidence).toBeNull();
+  });
 });

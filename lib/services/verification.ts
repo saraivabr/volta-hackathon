@@ -80,6 +80,16 @@ export async function processRecording(callId: string, recordingUrl: string) {
   const snapshot = await store.getSnapshot();
   const commitment = snapshot.commitment;
   if (!commitment || commitment.bookingCallId !== callId) return;
+  if (commitment.status === "PROPOSED") {
+    await store.addEvent({
+      operationId: commitment.operationId,
+      callId,
+      type: "evidence.skipped_unconfirmed",
+      severity: "WARNING",
+      summary: "Recording processed but the terms were never verbally confirmed; nothing to evidence",
+    });
+    return;
+  }
   const client = openAIClient();
   if (!client) throw new Error("OpenAI client is not configured");
 
