@@ -147,6 +147,12 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
         .sort((left, right) => left.occurredAt.localeCompare(right.occurredAt)),
     [snapshot.transcripts],
   );
+  // The carrier said yes and the recap went out: the deal is done, only the
+  // audio proof is outstanding. Calling that "market in motion" hides the thing
+  // the agent just achieved.
+  const agreed =
+    !!snapshot.commitment &&
+    ["VERBALLY_CONFIRMED", "RECAP_SENT", "EVIDENCE_LINKED", "COMMITTED"].includes(snapshot.commitment.status);
   const decisions = snapshot.decisions ?? [];
   const latestBrief = useMemo(
     () => [...(snapshot.callBriefs ?? [])].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0],
@@ -466,10 +472,15 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
           <div className="outcome-header">
             <div>
               <p className="eyebrow">Operational outcome</p>
-              {snapshot.commitment?.status === "COMMITTED" && winningOffer ? (
+              {agreed && winningOffer ? (
                 <>
                   <h1>{winningCarrier?.name} booked</h1>
-                  <p className="outcome-value">{money.format(winningOffer.amount)} <span>/ {winningOffer.pickupDate} · {winningOffer.pickupTime}</span></p>
+                  <p className="outcome-value">
+                    {money.format(winningOffer.amount)} <span>/ {winningOffer.pickupDate} · {winningOffer.pickupTime}</span>
+                    {snapshot.commitment?.status === "COMMITTED" ? null : (
+                      <span className="outcome-pending"> · verification in progress</span>
+                    )}
+                  </p>
                 </>
               ) : (
                 <>
@@ -480,7 +491,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
             </div>
             <div className="outcome-actions">
               <button className="secondary-button" onClick={() => run("reset")} disabled={busy !== null}><RefreshCw size={15} />{busy === "reset" ? "Preparing…" : "New operation"}</button>
-              {snapshot.commitment?.status === "COMMITTED" && !snapshot.escalation ? (
+              {agreed && !snapshot.escalation ? (
                 <button className="secondary-button" onClick={() => run("simulate-inbound")} disabled={busy !== null}><AlertTriangle size={15} />Inbound exception</button>
               ) : null}
               {!hasQuoteCalls ? (
@@ -587,7 +598,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
 
           <section className="verification-grid">
             <article className="commitment-panel">
-              <div className="section-heading"><div><span className="section-number">F</span><h2>Commitment ledger</h2></div>{snapshot.commitment ? <StatusPill status={snapshot.commitment.status} /> : null}</div>
+              <div className="section-heading"><div><span className="section-number">F</span><h2>Commitment ledger</h2></div>{snapshot.commitment ? <span data-testid="commitment-status"><StatusPill status={snapshot.commitment.status} /></span> : null}</div>
               {snapshot.commitment ? (
                 <>
                   <div className="commitment-outcome"><ShieldCheck size={23} /><div><span>Verified outcome</span><strong>{snapshot.commitment.status === "COMMITTED" ? `${winningCarrier?.name} · ${money.format(winningOffer?.amount ?? 0)}` : "Verification in progress"}</strong></div></div>
