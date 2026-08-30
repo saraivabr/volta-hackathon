@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/websocket"
 	"wacalls/internal/voip/call"
+	"wacalls/internal/voip/core"
 )
 
 type realtimeToken struct {
@@ -29,7 +30,7 @@ type realtimeEvent struct {
 	Transcript string `json:"transcript"`
 	ItemID     string `json:"item_id"`
 	ResponseID string `json:"response_id"`
-	Session struct {
+	Session    struct {
 		ID string `json:"id"`
 	} `json:"session"`
 	Error struct {
@@ -38,25 +39,27 @@ type realtimeEvent struct {
 }
 
 type RealtimeBridge struct {
-	config         serviceConfig
-	voltaCallID    string
-	providerID     string
-	callManager    *call.CallManager
-	log            *slog.Logger
-	ctx            context.Context
-	cancel         context.CancelFunc
-	conn           *websocket.Conn
-	writeMu        sync.Mutex
-	stateMu        sync.Mutex
-	uplink         *linearResampler
-	downlink       *linearResampler
-	playback       *pcmPacer
-	sessionReady   bool
-	callActive     bool
-	greeted        bool
-	dropOutput     atomic.Bool
-	responseActive atomic.Bool
-	closed         atomic.Bool
+	config          serviceConfig
+	voltaCallID     string
+	providerID      string
+	callManager     *call.CallManager
+	log             *slog.Logger
+	ctx             context.Context
+	cancel          context.CancelFunc
+	conn            *websocket.Conn
+	writeMu         sync.Mutex
+	stateMu         sync.Mutex
+	uplink          *linearResampler
+	downlink        *linearResampler
+	playback        *pcmPacer
+	recorder        *pcmTimelineRecorder
+	sessionReady    bool
+	callActive      bool
+	greeted         bool
+	dropOutput      atomic.Bool
+	responseActive  atomic.Bool
+	silenceTimeouts atomic.Int32
+	closed          atomic.Bool
 }
 
 func NewRealtimeBridge(parent context.Context, config serviceConfig, voltaCallID, providerID string, cm *call.CallManager, log *slog.Logger) *RealtimeBridge {
@@ -71,8 +74,12 @@ func NewRealtimeBridge(parent context.Context, config serviceConfig, voltaCallID
 		cancel:      cancel,
 		uplink:      newLinearResampler(16_000, 24_000),
 		downlink:    newLinearResampler(24_000, 16_000),
+		recorder:    newPCMTimelineRecorder(16_000),
 	}
-	bridge.playback = newPCMPacer(ctx, 16_000, 20*time.Millisecond, 60*time.Millisecond, 30*time.Second, cm.FeedCapturedPCM)
+	bridge.playback = newPCMPacer(ctx, 16_000, 20*time.Millisecond, 60*time.Millisecond, 30*time.Second, func(frame []float32) {
+		bridge.recorder.Write(frame)
+		cm.FeedCapturedPCM(frame)
+	})
 	bridge.playback.Start(20 * time.Millisecond)
 	return bridge
 }
@@ -147,6 +154,7 @@ func (b *RealtimeBridge) readLoop() {
 			b.responseActive.Store(true)
 			b.dropOutput.Store(false)
 		case "input_audio_buffer.speech_started":
+			b.silenceTimeouts.Store(0)
 			b.dropOutput.Store(true)
 			b.playback.Clear()
 			if b.responseActive.CompareAndSwap(true, false) {
@@ -159,6 +167,31 @@ func (b *RealtimeBridge) readLoop() {
 		case "response.done":
 			b.responseActive.Store(false)
 			b.report("response.done", "GPT Realtime turn completed", "")
+		case "input_audio_buffer.timeout_triggered":
+			count := b.silenceTimeouts.Add(1)
+			if count == 1 {
+				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
+					"output_modalities": []string{"audio"},
+					"instructions":      "Hay silencio. Pregunta brevemente: ¿Sigue ahí?",
+				}})
+			} else if count == 3 {
+				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
+					"output_modalities": []string{"audio"},
+					"instructions":      "Sigue el silencio. Haz un último intento breve para confirmar si la persona continúa en la llamada.",
+				}})
+			} else if count >= 6 {
+				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
+					"output_modalities": []string{"audio"},
+					"instructions":      "Despídete brevemente porque no hubo respuesta y explica que no se creó ningún compromiso nuevo.",
+				}})
+				go func() {
+					select {
+					case <-time.After(3 * time.Second):
+						_ = b.callManager.EndCall(context.Background(), core.EndCallReasonUserEnded)
+					case <-b.ctx.Done():
+					}
+				}()
+			}
 		case "error":
 			if strings.Contains(event.Error.Message, "Cancellation failed: no active response found") {
 				continue
@@ -205,6 +238,7 @@ func (b *RealtimeBridge) WritePeerPCM(pcm []float32) {
 	ready := b.sessionReady && b.callActive
 	resampled := b.uplink.Process(pcm)
 	b.stateMu.Unlock()
+	b.recorder.Write(pcm)
 	if !ready || len(resampled) == 0 {
 		return
 	}
@@ -286,13 +320,49 @@ func (b *RealtimeBridge) reportTranscript(speaker, itemID, transcript string) {
 	}()
 }
 
-func (b *RealtimeBridge) Close() {
+func (b *RealtimeBridge) uploadRecording(wav []byte) {
+	if len(wav) <= 44 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	endpoint := b.config.voltaBaseURL + "/api/whatsapp/recordings?callId=" + url.QueryEscape(b.voltaCallID)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(wav))
+	if err != nil {
+		return
+	}
+	request.Header.Set("Authorization", "Bearer "+b.config.relaySecret)
+	request.Header.Set("Content-Type", "audio/wav")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		b.log.Error("recording upload failed", "err", err)
+		return
+	}
+	response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		b.log.Error("recording upload rejected", "status", response.StatusCode)
+	}
+}
+
+func (b *RealtimeBridge) close(reportStopped bool) {
 	if !b.closed.CompareAndSwap(false, true) {
 		return
 	}
-	b.report("stream.stopped", "WhatsApp PCM bridge closed", "")
+	if reportStopped {
+		b.report("stream.stopped", "WhatsApp PCM bridge closed", "")
+	}
+	wav := b.recorder.WAV()
 	b.cancel()
 	if b.conn != nil {
 		_ = b.conn.Close(websocket.StatusNormalClosure, "call ended")
 	}
+	go b.uploadRecording(wav)
+}
+
+func (b *RealtimeBridge) StopForHandoff() {
+	b.close(false)
+}
+
+func (b *RealtimeBridge) Close() {
+	b.close(true)
 }

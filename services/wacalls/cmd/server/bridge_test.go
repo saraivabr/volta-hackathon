@@ -61,12 +61,14 @@ func TestBridgePCMRoundtrip(t *testing.T) {
 	defer pc.Close()
 
 	got := make(chan []float32, 1)
+	opened := make(chan struct{}, 1)
 	br, answer, err := NewBridge(offer, slog.Default())
 	if err != nil {
 		t.Fatalf("NewBridge: %v", err)
 	}
 	defer br.Close()
 	br.OnBrowserPCM = func(pcm []float32) { got <- pcm }
+	br.OnDataChannelOpen = func() { opened <- struct{}{} }
 
 	if err := pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: answer}); err != nil {
 		t.Fatalf("browser SetRemoteDescription: %v", err)
@@ -76,6 +78,12 @@ func TestBridgePCMRoundtrip(t *testing.T) {
 		// 0.5 and -0.5 in Int16 LE.
 		_ = dc.Send([]byte{0x00, 0x40, 0x00, 0xC0})
 	})
+
+	select {
+	case <-opened:
+	case <-time.After(10 * time.Second):
+		t.Fatal("timed out waiting for bridge data channel to open")
+	}
 
 	select {
 	case pcm := <-got:

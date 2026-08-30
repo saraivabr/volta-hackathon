@@ -30,6 +30,7 @@ import Image from "next/image";
 import type { CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/domain/types";
 import { latestOffers, rankOffers } from "@/lib/domain/policy";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
+import { openWhatsAppTakeover } from "@/lib/client/wacalls-takeover";
 
 type Action = "scan" | "delegate" | "book" | "takeover" | "simulate-inbound" | "reset" | "save";
 
@@ -110,6 +111,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const [form, setForm] = useState(() => briefingFromSnapshot(initialSnapshot));
   const evidenceAudio = useRef<HTMLAudioElement>(null);
   const briefingForm = useRef<HTMLFormElement>(null);
+  const takeoverConnection = useRef<{ close: () => void } | null>(null);
   const ranked = useMemo(() => rankOffers(snapshot), [snapshot]);
   const winningOffer = ranked[0];
   const winningCarrier = snapshot.carriers.find((carrier) => carrier.id === winningOffer?.carrierId);
@@ -122,6 +124,10 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     [snapshot.transcripts],
   );
   const decisions = snapshot.decisions ?? [];
+  const latestBrief = useMemo(
+    () => [...(snapshot.callBriefs ?? [])].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0],
+    [snapshot.callBriefs],
+  );
 
   useEffect(() => {
     if (editing || !hasQuoteCalls) return;
@@ -278,8 +284,29 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   }
 
   async function logout() {
+    takeoverConnection.current?.close();
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
+  }
+
+  async function takeOverLive() {
+    const call = snapshot.calls.find((item) => item.id === snapshot.escalation?.callId);
+    if (call?.provider === "WHATSAPP" && call.providerCallId) {
+      setBusy("takeover");
+      setError("");
+      try {
+        const takeover = await openWhatsAppTakeover(snapshot.operation.id);
+        takeoverConnection.current?.close();
+        takeoverConnection.current = takeover;
+        setSnapshot(takeover.snapshot);
+      } catch (errorValue) {
+        setError(errorValue instanceof Error ? errorValue.message : "Live takeover failed");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+    await run("takeover");
   }
 
   function playEvidence() {
@@ -507,9 +534,23 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
             </article>
           </section>
 
+          <section className="market-panel call-brief-panel" data-testid="call-brief">
+            <div className="section-heading"><div><span className="section-number">E</span><h2>Call brief</h2></div><span className="micro-label">Actions and mentions · structured</span></div>
+            {latestBrief ? (
+              <div className="call-brief-grid">
+                <div><span>Outcome</span><strong>{latestBrief.mode} · {latestBrief.outcome}</strong></div>
+                <div><span>Rates mentioned</span><strong>{latestBrief.quotedRates.length ? latestBrief.quotedRates.map((rate) => money.format(rate)).join(" → ") : "None"}</strong></div>
+                <div><span>Conditions</span><strong>{latestBrief.conditions.join(", ") || "No extra conditions"}</strong></div>
+                <div><span>Changes</span><strong>{latestBrief.changes.join(" · ") || "No corrected terms"}</strong></div>
+                <div className="call-brief-wide"><span>Agent actions</span><ul>{latestBrief.actions.slice(-6).map((action) => <li key={action}>{action}</li>)}</ul></div>
+                <div className="call-brief-wide"><span>Relevant mentions</span><ul>{latestBrief.relevantMentions.slice(-6).map((mention) => <li key={mention}>{mention}</li>)}</ul></div>
+              </div>
+            ) : <div className="blank-state compact-blank"><Activity size={22} /><div><strong>Brief pending</strong><span>It is finalized automatically when a real call ends.</span></div></div>}
+          </section>
+
           <section className="verification-grid">
             <article className="commitment-panel">
-              <div className="section-heading"><div><span className="section-number">E</span><h2>Commitment ledger</h2></div>{snapshot.commitment ? <StatusPill status={snapshot.commitment.status} /> : null}</div>
+              <div className="section-heading"><div><span className="section-number">F</span><h2>Commitment ledger</h2></div>{snapshot.commitment ? <StatusPill status={snapshot.commitment.status} /> : null}</div>
               {snapshot.commitment ? (
                 <>
                   <div className="commitment-outcome"><ShieldCheck size={23} /><div><span>Verified outcome</span><strong>{snapshot.commitment.status === "COMMITTED" ? `${winningCarrier?.name} · ${money.format(winningOffer?.amount ?? 0)}` : "Verification in progress"}</strong></div></div>
@@ -527,7 +568,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
             </article>
 
             <article className="evidence-panel">
-              <div className="section-heading"><div><span className="section-number">F</span><h2>Audio evidence</h2></div><AudioLines size={18} /></div>
+              <div className="section-heading"><div><span className="section-number">G</span><h2>Audio evidence</h2></div><AudioLines size={18} /></div>
               {snapshot.evidence ? (
                 <>
                   <button className="audio-proof" onClick={playEvidence}><span className="play-orb"><Play size={18} fill="currentColor" /></span><span className="waveform" aria-hidden="true">{Array.from({ length: 34 }).map((_, index) => <i key={index} style={{ height: `${8 + ((index * 17) % 29)}px` }} />)}</span><span className="audio-time">{snapshot.evidence.startSeconds.toFixed(2)}s</span></button>
@@ -541,7 +582,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
         </section>
 
         <aside className="ledger-panel">
-          <div className="section-heading"><div><span className="section-number">G</span><h2>Audit stream</h2></div><Activity size={17} /></div>
+          <div className="section-heading"><div><span className="section-number">H</span><h2>Audit stream</h2></div><Activity size={17} /></div>
           <div className="ledger-list">
             {snapshot.events.map((event) => <LedgerItem key={event.id} severity={event.severity} summary={event.summary} type={event.type} time={event.occurredAt} />)}
           </div>
@@ -554,7 +595,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
           <div className="escalation-stripe" />
           <div className="escalation-head"><div><span className="live-badge"><span />LIVE ESCALATION</span><h2>Authority boundary reached</h2></div><StatusPill status={snapshot.escalation.status} /></div>
           <dl><div><dt>Operation</dt><dd>{snapshot.operation.customer} / {snapshot.operation.containerReference}</dd></div><div><dt>Current issue</dt><dd>{snapshot.escalation.reason}</dd></div><div><dt>Requested change</dt><dd>{snapshot.escalation.requestedChange}</dd></div><div><dt>Mandate conflict</dt><dd>Agent is not authorized to change the agreed terms.</dd></div></dl>
-          <button className="takeover-button" onClick={() => run("takeover")} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{snapshot.escalation.status === "CONNECTED" ? "HUMAN CONNECTED" : busy === "takeover" ? "DIALING OPERATOR…" : "TAKE OVER CALL"}</button>
+          <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{snapshot.escalation.status === "CONNECTED" ? "HUMAN CONNECTED" : busy === "takeover" ? "CONNECTING MICROPHONE…" : "TAKE OVER CALL"}</button>
         </aside>
       ) : null}
     </main>

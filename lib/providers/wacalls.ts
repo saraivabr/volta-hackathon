@@ -98,3 +98,11 @@ export async function sendWhatsAppText(phone: string, text: string) {
     body: JSON.stringify({ phone, text }),
   });
 }
+
+export async function startWhatsAppBrowserTakeover(providerCallId: string, sdpOffer: string) {
+  const sessionId = await resolveWaCallsSession();
+  return waFetch<{ sdp_answer: string }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/calls/${encodeURIComponent(providerCallId)}/webrtc?takeover=true`,
+    { method: "POST", body: JSON.stringify({ sdp_offer: sdpOffer }) },
+  );
+}

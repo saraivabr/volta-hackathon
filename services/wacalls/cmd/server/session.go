@@ -133,8 +133,14 @@ func (s *Session) onIncomingOffer(ctx context.Context, evt *events.CallOffer) {
 		s.rejectOffer(ctx, node, evt.From)
 		return
 	}
+	if !s.mgr.config.phoneAllowed(evt.From.User) {
+		s.rejectOffer(ctx, node, evt.From)
+		s.log.Warn("inbound call rejected: phone not allowlisted", "peer", evt.From.String())
+		return
+	}
 	cm := s.createCall(callID)
 	cm.HandleCallOffer(ctx, node, evt.From)
+	go s.activateInboundAgent(callID, evt.From.String(), cm)
 }
 
 func (s *Session) rejectOffer(ctx context.Context, node *waBinary.Node, from types.JID) {
@@ -253,6 +259,22 @@ func (s *Session) setBridge(callID string, b *Bridge) {
 	if oldB != nil {
 		oldB.Close()
 	}
+}
+
+func (s *Session) handoffToBridge(callID string, b *Bridge) bool {
+	oldBridge, oldAgent, found := s.reg.handoffToBridge(callID, b)
+	if !found {
+		b.Close()
+		return false
+	}
+	b.MarkActive()
+	if oldBridge != nil {
+		oldBridge.Close()
+	}
+	if oldAgent != nil {
+		oldAgent.StopForHandoff()
+	}
+	return true
 }
 
 func (s *Session) removeCall(callID string) {

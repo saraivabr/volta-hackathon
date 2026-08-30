@@ -101,6 +101,46 @@ describe("Volta store", () => {
     expect(snapshot.decisions.some((decision) => decision.transcriptSegmentIds.includes(first.id))).toBe(true);
   });
 
+  it("finalizes a structured call brief with rates, changes, actions, and relevant mentions", async () => {
+    const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "QUOTE" });
+    await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 9100,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "10:00",
+    });
+    await store.recordTranscript({
+      operationId: "op-2041",
+      callId: call.id,
+      speaker: "COUNTERPARTY",
+      providerItemId: "brief-counterparty-1",
+      text: "Puedo bajar a ocho mil quinientos para el jueves a las diez.",
+    });
+    await store.recordOffer({
+      operationId: "op-2041",
+      carrierId: "carrier-rutapac",
+      callId: call.id,
+      amount: 8500,
+      currency: "MXN",
+      pickupDate: "2026-09-03",
+      pickupTime: "10:00",
+    });
+    await store.updateCall(call.id, { status: "COMPLETED" });
+
+    const brief = await store.finalizeCallBrief(call.id);
+    expect(brief.outcome).toBe("COMPLETED");
+    expect(brief.quotedRates).toEqual([9100, 8500]);
+    expect(brief.finalRate).toBe(8500);
+    expect(brief.changes[0]).toContain("MXN 9100 → 8500");
+    expect(brief.actions.some((action) => action.includes("OFFER EVALUATED"))).toBe(true);
+    expect(brief.relevantMentions).toContain(
+      "Counterparty: Puedo bajar a ocho mil quinientos para el jueves a las diez.",
+    );
+  });
+
   it("does not become committed before recap and evidence", async () => {
     const call = await store.createCall({ operationId: "op-2041", carrierId: "carrier-rutapac", mode: "BOOKING" });
     const offer = await store.recordOffer({

@@ -48,7 +48,7 @@ func newServer(ctx context.Context, dbPath, staticDir string, maxCalls int, conf
 	}
 
 	broker := NewBroker()
-	mgr := newSessionManager(ctx, container, broker, store, waLogger, log, maxCalls)
+	mgr := newSessionManager(ctx, container, broker, store, waLogger, log, maxCalls, config)
 	broker.SnapshotFn = mgr.snapshotEvents
 
 	return &server{broker: broker, sessions: mgr, log: log, staticDir: staticDir, config: config}, nil

@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       await store.updateCall(event.callId, { status: "IN_PROGRESS" });
     } else if (event.eventType === "call.ended" || event.eventType === "stream.stopped") {
       await store.updateCall(event.callId, { status: "COMPLETED" });
+      await store.finalizeCallBrief(event.callId);
       if (event.eventType === "stream.stopped") await sendCommitmentRecap(event.callId);
     } else if (event.eventType === "relay.error") {
       await store.updateCall(event.callId, { status: "FAILED", failureReason: event.detail ?? "Realtime relay error" });

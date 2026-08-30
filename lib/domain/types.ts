@@ -174,6 +174,23 @@ export interface OperationalDecision {
   createdAt: string;
 }
 
+export interface CallBrief {
+  id: string;
+  operationId: string;
+  callId: string;
+  carrierId: string | null;
+  mode: CallMode;
+  outcome: CallStatus;
+  quotedRates: number[];
+  finalRate: number | null;
+  conditions: string[];
+  changes: string[];
+  actions: string[];
+  relevantMentions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OperationSnapshot {
   version: number;
   operation: Operation;
@@ -186,6 +203,7 @@ export interface OperationSnapshot {
   escalation: Escalation | null;
   transcripts: TranscriptSegment[];
   decisions: OperationalDecision[];
+  callBriefs: CallBrief[];
   events: LedgerEvent[];
 }
 

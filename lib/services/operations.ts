@@ -50,6 +50,7 @@ export async function startMarketScan(operationId: string) {
           pickupDate: fixture.pickupDate,
           pickupTime: fixture.pickupTime,
         });
+        await store.finalizeCallBrief(call.id);
       }),
     );
     await store.addEvent({
@@ -126,6 +127,7 @@ export async function bookWinningOffer(operationId: string) {
       severity: "WARNING",
       summary: "Booking confirmation simulated because Twilio is not configured",
     });
+    await store.finalizeCallBrief(call.id);
   }
   return store.getSnapshot(operationId);
 }

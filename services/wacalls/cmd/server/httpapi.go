@@ -252,9 +252,22 @@ func (s *server) doWebRTC(sess *Session, w http.ResponseWriter, r *http.Request)
 		ac.cm.FeedCapturedPCM(pcm)
 	}
 	bridge.OnTerminalICE = func() {
-		go sess.terminateCall(callID, core.EndCallReasonUserEnded)
+		if bridge.IsActive() {
+			go sess.terminateCall(callID, core.EndCallReasonUserEnded)
+		} else {
+			bridge.Close()
+		}
 	}
-	sess.setBridge(callID, bridge)
+	if r.URL.Query().Get("takeover") == "true" {
+		bridge.OnDataChannelOpen = func() {
+			if !sess.handoffToBridge(callID, bridge) {
+				bridge.Close()
+			}
+		}
+	} else {
+		sess.setBridge(callID, bridge)
+		bridge.MarkActive()
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"sdp_answer": answer})
 }
 

@@ -76,6 +76,20 @@ func (r *callRegistry) setAgent(callID, voltaCallID string, agent *RealtimeBridg
 	return true
 }
 
+func (r *callRegistry) handoffToBridge(callID string, bridge *Bridge) (*Bridge, *RealtimeBridge, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ac, ok := r.calls[callID]
+	if !ok {
+		return nil, nil, false
+	}
+	oldBridge := ac.bridge
+	oldAgent := ac.agent
+	ac.bridge = bridge
+	ac.agent = nil
+	return oldBridge, oldAgent, true
+}
+
 func (r *callRegistry) drain() []*activeCall {
 	r.mu.Lock()
 	defer r.mu.Unlock()

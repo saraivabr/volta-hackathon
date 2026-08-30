@@ -44,6 +44,8 @@ test("operator completes the verified demo cycle", async ({ page }) => {
   await page.getByTestId("book-winner").click();
   await expect(page.getByRole("heading", { name: "RutaPac booked" })).toBeVisible();
   await expect(page.getByText("COMMITTED", { exact: true }).first()).toBeVisible();
+  await expect(page.getByTestId("call-brief")).toContainText("Rates mentioned");
+  await expect(page.getByTestId("call-brief")).toContainText("8,500");
 
   await page.getByRole("button", { name: "Inbound exception" }).click();
   await expect(page.getByText("Authority boundary reached")).toBeVisible();

@@ -30,6 +30,7 @@ const hashToken = (value: string) => createHash("sha256").update(value).digest("
 function normalizeSnapshot(snapshot: OperationSnapshot): OperationSnapshot {
   snapshot.transcripts ??= [];
   snapshot.decisions ??= [];
+  snapshot.callBriefs ??= [];
   return snapshot;
 }
 
@@ -123,6 +124,15 @@ export abstract class BaseSnapshotStore implements VoltaStore {
       Object.assign(call, input);
       if (input.status === "IN_PROGRESS" && !call.startedAt) call.startedAt = now();
       if (["COMPLETED", "FAILED"].includes(input.status ?? "") && !call.endedAt) call.endedAt = now();
+      if (call.mode === "QUOTE" && ["COMPLETED", "FAILED"].includes(input.status ?? "")) {
+        const quoteCalls = snapshot.calls.filter((item) => item.mode === "QUOTE");
+        if (
+          quoteCalls.length >= snapshot.carriers.length &&
+          quoteCalls.every((item) => ["COMPLETED", "FAILED"].includes(item.status))
+        ) {
+          snapshot.operation.status = "QUOTED";
+        }
+      }
       this.pushEvent(snapshot, {
         operationId: call.operationId,
         callId,
@@ -179,6 +189,59 @@ export abstract class BaseSnapshotStore implements VoltaStore {
     return this.mutate((snapshot) => this.pushDecision(snapshot, input));
   }
 
+  async finalizeCallBrief(callId: string) {
+    return this.mutate((snapshot) => {
+      const call = snapshot.calls.find((item) => item.id === callId);
+      if (!call) throw new Error("Call not found");
+      const directOffers = snapshot.offers
+        .filter((offer) => offer.callId === callId)
+        .sort((left, right) => left.revision - right.revision);
+      const committedOffer =
+        snapshot.commitment?.bookingCallId === callId
+          ? snapshot.offers.find((offer) => offer.id === snapshot.commitment?.offerId)
+          : undefined;
+      const offers = directOffers.length ? directOffers : committedOffer ? [committedOffer] : [];
+      const decisions = snapshot.decisions.filter((decision) => decision.callId === callId);
+      const transcripts = snapshot.transcripts.filter((segment) => segment.callId === callId);
+      const existing = snapshot.callBriefs.find((brief) => brief.callId === callId);
+      const timestamp = now();
+      const brief = {
+        id: existing?.id ?? randomUUID(),
+        operationId: call.operationId,
+        callId,
+        carrierId: call.carrierId,
+        mode: call.mode,
+        outcome: call.status,
+        quotedRates: offers.map((offer) => offer.amount),
+        finalRate: offers.at(-1)?.amount ?? null,
+        conditions: [...new Set(offers.flatMap((offer) => offer.conditions))],
+        changes: offers.slice(1).map((offer, index) => {
+          const previous = offers[index];
+          return `Revision ${previous.revision} → ${offer.revision}: MXN ${previous.amount} → ${offer.amount}, ${previous.pickupDate} ${previous.pickupTime} → ${offer.pickupDate} ${offer.pickupTime}`;
+        }),
+        actions: decisions.map(
+          (decision) => `${decision.outcome}: ${decision.kind.replaceAll("_", " ")} — ${decision.rationale}`,
+        ),
+        relevantMentions: transcripts.map(
+          (segment) => `${segment.speaker === "AGENT" ? "Volta" : "Counterparty"}: ${segment.text}`,
+        ),
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      if (existing) Object.assign(existing, brief);
+      else snapshot.callBriefs.unshift(brief);
+      this.pushEvent(snapshot, {
+        operationId: call.operationId,
+        callId,
+        type: "call_brief.finalized",
+        severity: "SUCCESS",
+        summary: "Structured call brief finalized",
+        payload: { briefId: brief.id, offers: offers.length, decisions: decisions.length },
+      });
+      return brief;
+    });
+  }
+
   async recordOffer(input: OfferInput) {
     return this.mutate((snapshot) => {
       if (snapshot.operation.id !== input.operationId) throw new Error("Operation not found");
@@ -203,7 +266,12 @@ export abstract class BaseSnapshotStore implements VoltaStore {
         createdAt: now(),
       };
       snapshot.offers.push(offer);
-      snapshot.operation.status = "SCANNING";
+      const quoteCalls = snapshot.calls.filter((item) => item.mode === "QUOTE");
+      snapshot.operation.status =
+        quoteCalls.length >= snapshot.carriers.length &&
+        quoteCalls.every((item) => ["COMPLETED", "FAILED"].includes(item.status))
+          ? "QUOTED"
+          : "SCANNING";
       this.pushEvent(snapshot, {
         operationId: input.operationId,
         callId: input.callId,

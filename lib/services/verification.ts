@@ -5,6 +5,8 @@ import { isTwilioConfigured, twilioClient } from "@/lib/providers/twilio";
 import { publicBaseUrl } from "@/lib/server/secrets";
 import { sendWhatsAppText } from "@/lib/providers/wacalls";
 import { voiceTransport } from "@/lib/providers/voice";
+import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
+import { downloadRecording } from "@/lib/server/recording-storage";
 
 export async function sendCommitmentRecap(callId: string) {
   const store = getStore();
@@ -67,14 +69,24 @@ export async function processRecording(callId: string, recordingUrl: string) {
   const client = openAIClient();
   if (!client) throw new Error("OpenAI client is not configured");
 
-  const auth = Buffer.from(
-    `${process.env.TWILIO_ACCOUNT_SID ?? ""}:${process.env.TWILIO_AUTH_TOKEN ?? ""}`,
-  ).toString("base64");
-  const mediaResponse = await fetch(`${recordingUrl}.mp3`, {
-    headers: isTwilioConfigured() ? { Authorization: `Basic ${auth}` } : {},
-  });
-  if (!mediaResponse.ok) throw new Error(`Recording download failed (${mediaResponse.status})`);
-  const file = await toFile(Buffer.from(await mediaResponse.arrayBuffer()), `${callId}.mp3`);
+  let bytes: Buffer;
+  let filename: string;
+  if (recordingUrl.startsWith("supabase://")) {
+    const stored = await downloadRecording(recordingUrl);
+    bytes = stored.bytes;
+    filename = `${callId}.wav`;
+  } else {
+    const auth = Buffer.from(
+      `${process.env.TWILIO_ACCOUNT_SID ?? ""}:${process.env.TWILIO_AUTH_TOKEN ?? ""}`,
+    ).toString("base64");
+    const mediaResponse = await fetch(`${recordingUrl}.mp3`, {
+      headers: isTwilioConfigured() ? { Authorization: `Basic ${auth}` } : {},
+    });
+    if (!mediaResponse.ok) throw new Error(`Recording download failed (${mediaResponse.status})`);
+    bytes = Buffer.from(await mediaResponse.arrayBuffer());
+    filename = `${callId}.mp3`;
+  }
+  const file = await toFile(bytes, filename);
   const transcript = await client.audio.transcriptions.create({
     file,
     model: process.env.OPENAI_TRANSCRIPTION_MODEL ?? "gpt-4o-transcribe-diarize",
@@ -85,8 +97,7 @@ export async function processRecording(callId: string, recordingUrl: string) {
   const evidence =
     [...segments]
       .reverse()
-      .find((segment) => /\b(s[ií]|confirmo|de acuerdo|correcto)\b/i.test(segment.text ?? "")) ??
-    segments.at(-1);
+      .find((segment) => isUnequivocalConfirmation(segment.text ?? ""));
   if (!evidence || evidence.start === undefined || evidence.end === undefined) {
     await store.addEvent({
       operationId: commitment.operationId,

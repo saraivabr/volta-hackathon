@@ -59,6 +59,7 @@ export function createSeedSnapshot(): OperationSnapshot {
     escalation: null,
     transcripts: [],
     decisions: [],
+    callBriefs: [],
     events: [
       {
         id: "event-seed",

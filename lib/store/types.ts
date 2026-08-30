@@ -1,5 +1,6 @@
 import type {
   CallAttempt,
+  CallBrief,
   CallMode,
   CallStatus,
   Carrier,
@@ -65,6 +66,7 @@ export interface VoltaStore {
   updateCall(callId: string, input: UpdateCallInput): Promise<CallAttempt>;
   recordTranscript(input: TranscriptInput): Promise<TranscriptSegment>;
   recordDecision(input: DecisionInput): Promise<OperationalDecision>;
+  finalizeCallBrief(callId: string): Promise<CallBrief>;
   recordOffer(input: OfferInput): Promise<Offer>;
   stageBooking(operationId: string, offerId: string, callId: string): Promise<StageBookingResult>;
   confirmBooking(commitmentId: string, confirmationToken: string): Promise<Commitment>;

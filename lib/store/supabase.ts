@@ -47,7 +47,26 @@ export class SupabaseVoltaStore extends BaseSnapshotStore {
       .eq("version", expectedVersion)
       .select("operation_id");
     if (error) throw new Error(`Supabase write failed: ${error.message}`);
-    return (data?.length ?? 0) === 1;
+    const written = (data?.length ?? 0) === 1;
+    if (written && snapshot.events.length) {
+      const { error: ledgerError } = await this.client.from("volta_ledger_events").upsert(
+        snapshot.events.map((event) => ({
+          id: event.id,
+          operation_id: event.operationId,
+          call_id: event.callId,
+          event_type: event.type,
+          severity: event.severity,
+          summary: event.summary,
+          payload: event.payload,
+          occurred_at: event.occurredAt,
+        })),
+        { onConflict: "id", ignoreDuplicates: true },
+      );
+      if (ledgerError) {
+        console.error(JSON.stringify({ level: "error", message: "Ledger append failed", error: ledgerError.message }));
+      }
+    }
+    return written;
   }
 
   protected async seedSnapshot() {

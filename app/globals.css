@@ -220,6 +220,14 @@ td span { display: block; color: var(--muted); font-size: 8px; margin-top: 2px; 
 .escalation-drawer dt { color: #9f706a; font: 7px var(--font-mono); text-transform: uppercase; margin-bottom: 3px; }
 .escalation-drawer dd { margin: 0; font-size: 10px; }
 .takeover-button { width: 100%; background: var(--red); color: #160907; border-color: var(--red); }
+.call-brief-panel { margin-top: 14px; }
+.call-brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.call-brief-grid > div { border: 1px solid var(--line-soft); background: #101411; padding: 11px; display: grid; gap: 5px; }
+.call-brief-grid span { color: var(--muted); font: 8px var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.call-brief-grid strong, .call-brief-grid li { color: #d6dad3; font-size: 10px; line-height: 1.5; }
+.call-brief-grid ul { margin: 0; padding-left: 17px; }
+.call-brief-wide { grid-column: 1 / -1; }
+@media (max-width: 760px) { .call-brief-grid { grid-template-columns: 1fr; } .call-brief-wide { grid-column: auto; } }
 
 .login-shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1.55fr) minmax(340px,.7fr); position: relative; overflow: hidden; }
 .login-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size: 54px 54px; mask-image: linear-gradient(90deg,#000,transparent 70%); pointer-events: none; }

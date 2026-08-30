@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { winner } from "@/lib/domain/policy";
+import { isUnequivocalConfirmation } from "@/lib/domain/confirmation";
 import { getStore } from "@/lib/store";
 
 export const toolDefinitions = [
@@ -166,7 +167,7 @@ export async function executeTool(name: string, rawArguments: unknown): Promise<
     }
     case "confirm_booking": {
       const input = schemas.confirm_booking.parse(rawArguments);
-      if (!/\b(s[ií]|confirmo|de acuerdo|correcto)\b/i.test(input.confirmationText)) {
+      if (!isUnequivocalConfirmation(input.confirmationText)) {
         const snapshot = await store.getSnapshot();
         if (snapshot.commitment) {
           await store.recordDecision({

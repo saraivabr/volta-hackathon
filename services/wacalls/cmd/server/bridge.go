@@ -17,12 +17,17 @@ const pcmChannelLabel = "pcm"
 // the CallManager over a WebRTC data channel. The call core only ever sees
 // []float32 PCM, so it stays unaware of the transport (no Opus here anymore).
 type Bridge struct {
-	pc  *webrtc.PeerConnection
-	dc  atomic.Pointer[webrtc.DataChannel]
-	log *slog.Logger
+	pc     *webrtc.PeerConnection
+	dc     atomic.Pointer[webrtc.DataChannel]
+	active atomic.Bool
+	closed atomic.Bool
+	log    *slog.Logger
 
 	// OnBrowserPCM is invoked with decoded 16 kHz mono PCM captured from the browser mic.
 	OnBrowserPCM func(pcm []float32)
+	// OnDataChannelOpen runs only after the browser has applied the SDP answer and
+	// the PCM channel is usable. Handoffs must wait for this boundary.
+	OnDataChannelOpen func()
 	// OnTerminalICE fires when the peer connection fails or closes.
 	OnTerminalICE func()
 }
@@ -39,6 +44,11 @@ func NewBridge(offerSDP string, log *slog.Logger) (*Bridge, string, error) {
 			return
 		}
 		br.dc.Store(dc)
+		dc.OnOpen(func() {
+			if cb := br.OnDataChannelOpen; cb != nil {
+				cb()
+			}
+		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			if cb := br.OnBrowserPCM; cb != nil && len(msg.Data) > 0 {
 				cb(media.PCMInt16LEToFloat32(msg.Data))
@@ -84,8 +94,16 @@ func (b *Bridge) WritePCM(pcm []float32) error {
 	return dc.Send(media.PCMFloat32ToInt16LE(pcm))
 }
 
+func (b *Bridge) MarkActive() {
+	b.active.Store(true)
+}
+
+func (b *Bridge) IsActive() bool {
+	return b.active.Load()
+}
+
 func (b *Bridge) Close() {
-	if b.pc != nil {
+	if b.closed.CompareAndSwap(false, true) && b.pc != nil {
 		_ = b.pc.Close()
 	}
 }
