@@ -13,6 +13,11 @@ import (
 // Int16 LE PCM in both directions. The browser side must create it with this label.
 const pcmChannelLabel = "pcm"
 
+const (
+	webRTCUDPPortMin = 50000
+	webRTCUDPPortMax = 50100
+)
+
 // Bridge is the browser-leg adapter: it carries raw PCM between the browser and
 // the CallManager over a WebRTC data channel. The call core only ever sees
 // []float32 PCM, so it stays unaware of the transport (no Opus here anymore).
@@ -33,7 +38,18 @@ type Bridge struct {
 }
 
 func NewBridge(offerSDP string, log *slog.Logger) (*Bridge, string, error) {
-	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	return newBridge(offerSDP, log, "")
+}
+
+func newBridge(offerSDP string, log *slog.Logger, publicIP string) (*Bridge, string, error) {
+	settingEngine := webrtc.SettingEngine{}
+	if err := settingEngine.SetEphemeralUDPPortRange(webRTCUDPPortMin, webRTCUDPPortMax); err != nil {
+		return nil, "", err
+	}
+	if publicIP != "" {
+		settingEngine.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
+	}
+	pc, err := webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine)).NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		return nil, "", err
 	}

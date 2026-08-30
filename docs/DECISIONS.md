@@ -69,3 +69,13 @@
 **Why:** Snapshot reads make the command center simple while the ledger preserves the technical-defense trail.
 
 **Trade-off:** This is deliberately single-operation and not a multi-tenant logistics platform.
+
+## ADR-008 — Persistent Azure VPS for WaCalls
+
+**Decision:** Run the stateful WhatsApp relay on a minimal Azure burstable VM, with Caddy TLS, `systemd` restart policy, a static public IP and a constrained UDP range for browser takeover.
+
+**Alternatives:** Keep the relay on the demo Mac through a temporary Cloudflare tunnel; deploy it inside a serverless function.
+
+**Why:** The WhatsApp device session and long-lived Realtime/WebRTC sockets require persistent storage and a long-running process. Serverless execution does not fit that lifecycle, and a laptop tunnel is not operationally durable.
+
+**Trade-off:** The VPS becomes a small always-on infrastructure cost and must receive operating-system security updates.

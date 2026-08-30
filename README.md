@@ -7,6 +7,7 @@ Volta turns logistics phone conversations into verified operational commitments 
 - Next.js 16 / TypeScript / Tailwind CSS
 - OpenAI Realtime `gpt-realtime-2.1` with final input/output transcription events
 - WaCalls / WhatsApp Web voice transport with bidirectional 16 kHz PCM and paced playback
+- Azure VPS with Caddy TLS, persistent WhatsApp session and constrained WebRTC UDP media
 - Stateless MCP tool endpoint for policy-controlled actions
 - Deterministic mandate, market-ranking and commitment engines
 - Supabase Postgres snapshot persistence, append-only audit rows, private recording Storage and RLS
@@ -46,7 +47,7 @@ The OpenAI key must be supplied through `OPENAI_API_KEY`. The ignored `Sem Tít
 ## WhatsApp voice setup
 
 1. Apply `supabase/migrations/202608290001_volta_core.sql`.
-2. Build the service with `pnpm wacalls:build` and expose it behind a persistent HTTPS origin.
+2. Build the service with `pnpm wacalls:build` and expose it behind a persistent HTTPS origin. The repeatable Azure layout is documented in [`deploy/azure`](deploy/azure/README.md).
 3. Set `VOLTA_VOICE_TRANSPORT=whatsapp`, `WACALLS_BASE_URL`, matching API/relay secrets and an exact `WACALLS_ALLOWED_PHONES` consent allowlist.
 4. Start the service, open the command center and scan its QR from WhatsApp → Linked devices.
 5. Add all variables from `.env.example` to Vercel. `APP_BASE_URL` must be the public HTTPS origin.
@@ -85,4 +86,4 @@ The UI never labels an outcome committed until explicit verbal confirmation, a w
 
 - WhatsApp calls are real phone calls to consented E.164 accounts, but the transport is not PSTN.
 - Three-device parallel QA requires three consented numbers in `WACALLS_ALLOWED_PHONES`; automated tests never dial real people.
-- The WaCalls process must run behind a stable HTTPS origin during judging. A temporary tunnel is not a durable production deployment.
+- Production WaCalls now runs persistently on Azure; operational availability still depends on the VPS, Caddy and the unofficial WhatsApp Web session remaining healthy.

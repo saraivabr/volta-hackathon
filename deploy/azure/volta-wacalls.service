@@ -1,0 +1,22 @@
+[Unit]
+Description=Volta WaCalls WhatsApp voice relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=volta
+Group=volta
+EnvironmentFile=/etc/volta-wacalls.env
+ExecStart=/opt/volta-wacalls/bin/volta-wacalls -addr 127.0.0.1:8081 -db /var/lib/volta-wacalls/wacalls.db
+Restart=always
+RestartSec=5
+StateDirectory=volta-wacalls
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/volta-wacalls
+
+[Install]
+WantedBy=multi-user.target

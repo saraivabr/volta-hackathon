@@ -54,6 +54,21 @@ func TestNewBridgeNegotiatesDataChannelOffer(t *testing.T) {
 	}
 }
 
+func TestNewBridgeAdvertisesConfiguredPublicIP(t *testing.T) {
+	pc, _, offer := makeBrowserOffer(t)
+	defer pc.Close()
+
+	br, answer, err := newBridge(offer, slog.Default(), "203.0.113.10")
+	if err != nil {
+		t.Fatalf("newBridge failed: %v", err)
+	}
+	defer br.Close()
+
+	if !strings.Contains(answer, "203.0.113.10") {
+		t.Fatalf("answer does not advertise configured public IP:\n%s", answer)
+	}
+}
+
 // TestBridgePCMRoundtrip connects the simulated browser to the bridge and checks
 // that PCM sent on the data channel surfaces as float32 via OnBrowserPCM.
 func TestBridgePCMRoundtrip(t *testing.T) {
