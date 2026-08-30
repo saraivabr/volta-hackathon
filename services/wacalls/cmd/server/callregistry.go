@@ -11,6 +11,11 @@ type activeCall struct {
 	bridge      *Bridge
 	agent       *RealtimeBridge
 	voltaCallID string
+	// peerCallID is the other leg of a live handoff. While it is set this call's
+	// audio goes to that call instead of to the agent, in both directions.
+	peerCallID string
+	// bridgeTarget is the leg this call should be joined to once it is answered.
+	bridgeTarget string
 }
 
 type callRegistry struct {
@@ -99,4 +104,77 @@ func (r *callRegistry) drain() []*activeCall {
 	}
 	r.calls = map[string]*activeCall{}
 	return out
+}
+
+// markForBridge records that a freshly dialled leg should be joined to another
+// one as soon as the person answers.
+func (r *callRegistry) markForBridge(callID, targetCallID string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ac, ok := r.calls[callID]
+	if !ok {
+		return false
+	}
+	ac.bridgeTarget = targetCallID
+	return true
+}
+
+func (r *callRegistry) pendingBridge(callID string) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ac, ok := r.calls[callID]
+	if !ok || ac.bridgeTarget == "" {
+		return "", false
+	}
+	return ac.bridgeTarget, true
+}
+
+// link joins two live calls and detaches the agent from both. The agents are
+// returned so the caller can close them outside the lock: the human is taking
+// the conversation, and two voices on one line is worse than none.
+func (r *callRegistry) link(aID, bID string) ([]*RealtimeBridge, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	a, okA := r.calls[aID]
+	b, okB := r.calls[bID]
+	if !okA || !okB {
+		return nil, false
+	}
+	detached := []*RealtimeBridge{}
+	for _, ac := range []*activeCall{a, b} {
+		if ac.agent != nil {
+			detached = append(detached, ac.agent)
+			ac.agent = nil
+		}
+	}
+	a.peerCallID, b.peerCallID = bID, aID
+	a.bridgeTarget, b.bridgeTarget = "", ""
+	return detached, true
+}
+
+// unlink clears the pairing from whichever side survives, and reports the leg
+// that was still on the other end so it can be ended too.
+func (r *callRegistry) unlink(callID string) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ac, ok := r.calls[callID]
+	if !ok || ac.peerCallID == "" {
+		return "", false
+	}
+	peerID := ac.peerCallID
+	ac.peerCallID = ""
+	if peer, ok := r.calls[peerID]; ok {
+		peer.peerCallID = ""
+	}
+	return peerID, true
+}
+
+func (r *callRegistry) peerOf(callID string) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ac, ok := r.calls[callID]
+	if !ok || ac.peerCallID == "" {
+		return "", false
+	}
+	return ac.peerCallID, true
 }

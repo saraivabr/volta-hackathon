@@ -106,3 +106,16 @@ export async function startWhatsAppBrowserTakeover(providerCallId: string, sdpOf
     { method: "POST", body: JSON.stringify({ sdp_offer: sdpOffer }) },
   );
 }
+
+/**
+ * WhatsApp has no transfer primitive, so the relay dials the third party and
+ * crosses the audio of both legs once they answer. The counterparty never
+ * leaves the line and the agent steps off it.
+ */
+export async function transferWhatsAppCall(providerCallId: string, phone: string) {
+  const sessionId = await resolveWaCallsSession();
+  return waFetch<{ transfer: { callId: string; dialedId: string; to: string; state: string } }>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/calls/${encodeURIComponent(providerCallId)}/transfer`,
+    { method: "POST", body: JSON.stringify({ phone }) },
+  );
+}

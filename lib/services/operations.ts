@@ -3,6 +3,7 @@ import { getStore } from "@/lib/store";
 import { sendCommitmentRecap } from "@/lib/services/verification";
 import { dialHumanTakeover } from "@/lib/providers/twilio";
 import { dialVoiceCall, isVoiceConfigured, voiceProviderTag, voiceTransport } from "@/lib/providers/voice";
+import { transferWhatsAppCall } from "@/lib/providers/wacalls";
 import { callOperatorWithContext, isTelnyxConfigured, referCallToOperator } from "@/lib/providers/telnyx";
 
 const demoOffers = [
@@ -238,7 +239,20 @@ export async function takeOver(operationId: string) {
         // still has one, so ring it and read the escalation out; the live audio
         // is joined through the browser bridge in parallel.
         const phone = snapshot.operation.handoffPhoneE164?.trim();
-        if (phone && isTelnyxConfigured()) {
+        if (phone && call.providerCallId) {
+          // A real transfer: the relay dials the human and joins them to the
+          // call in progress. The carrier stays on the line and the agent
+          // leaves it — no browser, no approval step.
+          const { transfer } = await transferWhatsAppCall(call.providerCallId, phone);
+          await store.addEvent({
+            operationId,
+            callId: call.id,
+            type: "escalation.transferring",
+            severity: "WARNING",
+            summary: `Transferring the live call to ${phone}`,
+            payload: { dialedId: transfer.dialedId },
+          });
+        } else if (phone && isTelnyxConfigured()) {
           await callOperatorWithContext(phone, call.id);
           await store.addEvent({
             operationId,

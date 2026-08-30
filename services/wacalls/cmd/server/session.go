@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"sync"
@@ -61,10 +62,6 @@ func (s *Session) wireCall(cm *call.CallManager, callID string) {
 			StartedAt: time.Now().UnixMilli(), Status: StatusRinging,
 		})
 		s.mgr.broker.emitIncoming(s.id, c.CallID, c.PeerJid)
-		// Answering was written and never wired: a call to the agent rang and
-		// nothing picked it up. Anyone may call — the agent opens by saying it
-		// is an AI and asking consent to record, which is where consent belongs.
-		go s.activateInboundAgent(c.CallID, c.PeerJid, cm)
 	}
 	cm.OnStateChange = func(c *call.CallInfo) {
 		if c.IsEnded() {
@@ -89,14 +86,33 @@ func (s *Session) wireCall(cm *call.CallManager, callID string) {
 		if ac, ok := s.reg.get(callID); ok && ac.agent != nil {
 			ac.agent.OnCallState(rec.Status)
 		}
+		if rec.Status == StatusConnected {
+			if target, pending := s.reg.pendingBridge(callID); pending {
+				s.joinCalls(callID, target)
+			}
+		}
 	}
 	cm.OnEnded = func(c *call.CallInfo) {
+		// A bridged pair is one conversation: whoever hangs up ends it for both.
+		if peerID, bridged := s.reg.unlink(c.CallID); bridged {
+			if peer, ok := s.reg.get(peerID); ok {
+				_ = peer.cm.EndCall(context.Background(), core.EndCallReasonUserEnded)
+			}
+		}
 		s.removeCall(c.CallID)
 		s.mgr.broker.endCall(c.CallID, string(c.StateData.EndReason))
 	}
 	cm.OnPeerAudio = func(pcm16 []float32) {
 		ac, ok := s.reg.get(callID)
 		if !ok {
+			return
+		}
+		// Bridged: this leg's peer is talking to the other leg's peer, so their
+		// audio becomes what we play down the other call.
+		if ac.peerCallID != "" {
+			if peer, ok := s.reg.get(ac.peerCallID); ok {
+				peer.cm.FeedCapturedPCM(pcm16)
+			}
 			return
 		}
 		if ac.agent != nil {
@@ -137,7 +153,12 @@ func (s *Session) onIncomingOffer(ctx context.Context, evt *events.CallOffer) {
 		s.rejectOffer(ctx, node, evt.From)
 		return
 	}
-	if !s.mgr.config.phoneAllowed(evt.From.User) {
+	// The allowlist is an outbound consent gate: it says who this service may
+	// dial. Someone calling in has already consented by calling, and the agent
+	// opens by saying it is an AI and asking permission to record. Gating inbound
+	// on it turned away every caller who was not already known — including the
+	// one person a trial by fire depends on.
+	if !s.mgr.config.inboundOpen && !s.mgr.config.phoneAllowed(evt.From.User) {
 		s.rejectOffer(ctx, node, evt.From)
 		s.log.Warn("inbound call rejected: phone not allowlisted", "peer", evt.From.String())
 		return
@@ -337,4 +358,37 @@ func mapStatus(state core.CallState) CallStatus {
 	default:
 		return StatusRinging
 	}
+}
+
+// joinCalls puts two live legs on the same conversation and takes the agent off
+// the line. It is the transfer WhatsApp itself does not offer: there is no
+// protocol primitive to hand a call to another number, so the relay holds both
+// and crosses the audio.
+func (s *Session) joinCalls(dialedID, originalID string) {
+	detached, ok := s.reg.link(dialedID, originalID)
+	if !ok {
+		s.log.Error("bridge link failed", "dialed", dialedID, "original", originalID)
+		return
+	}
+	for _, agent := range detached {
+		agent.StopForHandoff()
+	}
+	s.log.Info("calls bridged", "dialed", dialedID, "original", originalID, "agents_detached", len(detached))
+	s.mgr.broker.emitBridged(s.id, originalID, dialedID)
+}
+
+// transferCall dials someone and joins them to a call already in progress once
+// they answer. The original party stays on the line throughout.
+func (s *Session) transferCall(ctx context.Context, originalID string, to types.JID) (string, error) {
+	if _, ok := s.reg.get(originalID); !ok {
+		return "", fmt.Errorf("call %s is not active", originalID)
+	}
+	dialedID, err := s.startOutgoing(ctx, to, false)
+	if err != nil {
+		return "", err
+	}
+	if !s.reg.markForBridge(dialedID, originalID) {
+		return "", fmt.Errorf("could not mark %s for bridging", dialedID)
+	}
+	return dialedID, nil
 }

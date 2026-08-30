@@ -199,6 +199,15 @@ func (b *Broker) emitIncoming(sessionID, id, peer string) {
 	})
 }
 
+// emitBridged announces that two legs became one conversation and the agent
+// left the line.
+func (b *Broker) emitBridged(sessionID, callID, joinedCallID string) {
+	b.broadcast(map[string]any{
+		"type": "bridged", "sessionId": sessionID, "id": callID,
+		"joined": joinedCallID, "bridgedAt": time.Now().UnixMilli(),
+	})
+}
+
 func (b *Broker) emitIncomingClaimed(sessionID, id, owner string) {
 	b.broadcast(map[string]any{"type": "incoming-claimed", "sessionId": sessionID, "id": id, "owner": owner})
 }

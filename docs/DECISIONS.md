@@ -249,3 +249,23 @@
 **Why:** The code to register, brief and accept an inbound call was written and never wired: `OnIncoming` updated the panel and let the phone ring out. A judge told to call the agent reached nothing. Consent is handled where it belongs — the agent opens by saying it is an AI and asking permission to record — rather than by refusing to answer strangers, which would also refuse the judge.
 
 **Trade-off:** Any caller reaches the agent. The mandate governs the conversation either way, and an unrecognised caller is written to the ledger as a warning.
+
+## ADR-026 — The relay is the transfer WhatsApp does not have
+
+**Decision:** Hold both legs in the relay and cross their audio. `POST /calls/{id}/transfer` dials the handoff number, and the moment that person answers the two calls are paired: each side's peer audio becomes what is played down the other, the agent is detached, and whoever hangs up ends it for both.
+
+**Alternatives:** Keep calling the human separately and reading the escalation to them; keep the browser bridge as the only live path.
+
+**Why:** WhatsApp exposes no primitive for handing a call to another number, which is why the takeover had been a browser microphone and an approval step — the counterparty waited while an operator found a laptop and granted permissions. The relay already holds both directions of PCM and already mixes them for the recording, so the pieces for a real transfer were present; what was missing was a second leg and a pairing between them. The carrier now never leaves the line.
+
+**Trade-off:** Both legs stay open for the whole conversation, so a handoff costs two concurrent calls against the session limit, and the relay is in the audio path for its duration. Pairing state is per process; a restart mid-handoff drops both legs rather than half of one.
+
+## ADR-027 — The allowlist governs who we dial, not who may call
+
+**Decision:** Accept inbound calls from any number. `WACALLS_ALLOWED_PHONES` continues to gate outbound dialling only.
+
+**Alternatives:** Keep rejecting unknown callers; add each expected caller to the allowlist first.
+
+**Why:** Consent runs one way. The allowlist exists so this service does not ring people who never agreed to be rung; someone who dials in has already made that choice, and the agent opens by saying it is an AI and asking permission to record. Gating inbound on an outbound list rejected every caller who was not already known — including the judge a trial by fire is built around, who cannot be added in advance.
+
+**Trade-off:** Anyone who has the number reaches the agent. The mandate governs the conversation regardless, and an unrecognised caller is written to the ledger as a warning. `WACALLS_INBOUND_OPEN=false` restores the old behaviour.

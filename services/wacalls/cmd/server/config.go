@@ -16,6 +16,7 @@ type serviceConfig struct {
 	model          string
 	allowedOrigin  string
 	allowedPhones  map[string]struct{}
+	inboundOpen    bool
 	webRTCPublicIP string
 }
 
@@ -27,6 +28,7 @@ func loadServiceConfig() (serviceConfig, error) {
 		model:          strings.TrimSpace(os.Getenv("OPENAI_REALTIME_MODEL")),
 		allowedOrigin:  strings.TrimSpace(os.Getenv("WACALLS_ALLOWED_ORIGIN")),
 		allowedPhones:  map[string]struct{}{},
+		inboundOpen:    os.Getenv("WACALLS_INBOUND_OPEN") != "false",
 		webRTCPublicIP: strings.TrimSpace(os.Getenv("WACALLS_WEBRTC_PUBLIC_IP")),
 	}
 	if config.apiToken == "" {

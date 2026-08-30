@@ -28,6 +28,7 @@ func (s *server) routes() http.Handler {
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/webrtc", s.handleWebRTC)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/accept", s.handleAccept)
 	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/reject", s.handleReject)
+	mux.HandleFunc("POST /api/sessions/{sid}/calls/{id}/transfer", s.handleTransferCall)
 	mux.HandleFunc("DELETE /api/sessions/{sid}/calls/{id}", s.handleEndCall)
 	mux.HandleFunc("GET /api/sessions/{sid}/history", s.handleHistory)
 
@@ -176,6 +177,12 @@ func (s *server) handleAccept(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleReject(w http.ResponseWriter, r *http.Request) {
 	if sess := s.sessionByID(w, r.PathValue("sid")); sess != nil {
 		s.doReject(sess, w, r)
+	}
+}
+
+func (s *server) handleTransferCall(w http.ResponseWriter, r *http.Request) {
+	if sess := s.sessionByID(w, r.PathValue("sid")); sess != nil {
+		s.doTransferCall(sess, w, r)
 	}
 }
 

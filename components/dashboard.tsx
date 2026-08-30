@@ -83,6 +83,18 @@ function currentOffer(snapshot: OperationSnapshot, carrierId: string): Offer | u
   return latestOffers(snapshot.offers).find((offer) => offer.carrierId === carrierId);
 }
 
+/**
+ * With a handoff number the call is transferred to it outright. Without one the
+ * only route left is the operator joining through this browser, and the button
+ * should not promise the first while doing the second.
+ */
+function takeoverLabel(snapshot: OperationSnapshot, busy: boolean) {
+  if (snapshot.escalation?.status === "CONNECTED") return "HUMAN CONNECTED";
+  const phone = snapshot.operation.handoffPhoneE164?.trim();
+  if (phone) return busy ? "TRANSFERRING…" : `TRANSFER TO ${phone}`;
+  return busy ? "CONNECTING MICROPHONE…" : "TAKE OVER CALL";
+}
+
 function briefingFromSnapshot(snapshot: OperationSnapshot) {
   return {
     reference: snapshot.operation.reference,
@@ -682,7 +694,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
           {escalationOpen ? (
             <>
               <dl><div><dt>Operation</dt><dd>{snapshot.operation.customer} / {snapshot.operation.containerReference}</dd></div><div><dt>Current issue</dt><dd>{snapshot.escalation.reason}</dd></div><div><dt>Requested change</dt><dd>{snapshot.escalation.requestedChange}</dd></div><div><dt>Mandate conflict</dt><dd>Agent is not authorized to change the agreed terms.</dd></div></dl>
-              <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{snapshot.escalation.status === "CONNECTED" ? "HUMAN CONNECTED" : busy === "takeover" ? "CONNECTING MICROPHONE…" : "TAKE OVER CALL"}</button>
+              <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{takeoverLabel(snapshot, busy === "takeover")}</button>
             </>
           ) : null}
         </aside>
