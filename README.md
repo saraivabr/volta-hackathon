@@ -1,6 +1,6 @@
-# Volta
+# Pact
 
-Volta turns logistics phone conversations into verified operational commitments while enforcing a human-authored mandate.
+Pact turns logistics phone conversations into verified operational commitments while enforcing a human-authored mandate. **Pact** is the product; **Volta** is the agent that identifies itself on the call, which is the name that appears in transcripts and in the canonical recap.
 
 ## Stack
 

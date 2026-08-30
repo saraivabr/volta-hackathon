@@ -7,7 +7,7 @@ export default function LoginPage() {
       <section className="login-brand">
         <div className="brand-lockup">
           <span className="brand-mark">V</span>
-          <span>VOLTA / OPS</span>
+          <span>PACT / OPS</span>
         </div>
         <div>
           <p className="eyebrow">Delegated operations</p>

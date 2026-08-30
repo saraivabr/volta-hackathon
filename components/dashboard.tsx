@@ -321,7 +321,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
       <header className="topbar">
         <div className="brand-lockup compact">
           <span className="brand-mark">V</span>
-          <span>VOLTA / OPS</span>
+          <span>PACT / OPS</span>
         </div>
         <div className="topbar-operation">
           <span className="micro-label">Active operation</span>
