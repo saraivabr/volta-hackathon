@@ -13,6 +13,8 @@ Pact turns logistics phone conversations into verified operational commitments w
 - Deterministic mandate, market-ranking and commitment engines
 - Supabase Postgres snapshot persistence, append-only audit rows, private recording Storage and RLS
 
+Walkthrough: [watch the operation run end to end](https://www.loom.com/share/fe67ac065e2943dabdb6f510f237171d)
+
 Live command center: [volta-hackathon.vercel.app](https://volta-hackathon.vercel.app)
 
 Access code: `pact-judge-2041`
@@ -175,6 +177,7 @@ The UI never labels an outcome committed until explicit verbal confirmation, a w
 
 ## Hackathon deliverables
 
+- [Walkthrough video](https://www.loom.com/share/fe67ac065e2943dabdb6f510f237171d)
 - [Presentation](docs/PRESENTATION.md)
 - [Live demo script](docs/DEMO_SCRIPT.md)
 - [Architecture diagram and trust boundaries](docs/ARCHITECTURE.md)
