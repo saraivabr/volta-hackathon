@@ -9,6 +9,14 @@
 5. **Inbound/handoff (60s):** call Volta back from the committed carrier, report a truck failure and request Friday. Volta marks `AT_RISK`; the operator clicks takeover, grants microphone access and continues the same call.
 6. **Defense (15s):** open the decision trace and explain that the model observes while the mandate engine authorizes.
 
+## Renegotiation after the briefing changes
+
+Edit the briefing — move the window, or lower the ceiling — and press **Renegotiate**.
+The standing agreement is retired, the operation goes `AT_RISK`, and Pact calls the same
+carrier back saying the conditions changed. The new mandate binds: a price that was
+eligible ten minutes ago may not be any more, and the agent cannot lean on the old
+agreement to widen it.
+
 ## Trial by fire over the public network
 
 Hand the judge the Telnyx number and let them dial it from their own phone, from any country.

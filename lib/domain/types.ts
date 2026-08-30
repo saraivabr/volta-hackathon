@@ -6,7 +6,7 @@ export type OperationStatus =
   | "COMMITTED"
   | "AT_RISK";
 
-export type CallMode = "QUOTE" | "BOOKING" | "INBOUND" | "HANDOFF";
+export type CallMode = "QUOTE" | "BOOKING" | "RENEGOTIATION" | "INBOUND" | "HANDOFF";
 export type CallStatus =
   | "QUEUED"
   | "RINGING"

@@ -46,6 +46,19 @@ OBJETIVO DE ESTA LLAMADA: confirmar solamente la oferta ganadora.
 `;
   }
 
+  if (call.mode === "RENEGOTIATION") {
+    return `${invariants}${context}
+ACUERDO ANTERIOR (ya no vigente): ${snapshot.commitment?.recapText ?? "sin registro"}
+OBJETIVO DE ESTA LLAMADA: el briefing del cliente cambió después de que ya habían acordado. Vuelves a llamar para renegociar.
+1. Identifícate como IA e informa que la llamada puede ser grabada.
+2. Di con claridad que las condiciones de la operación cambiaron y cuáles son las nuevas. No culpes al transportista.
+3. Pregunta si pueden cumplir las nuevas condiciones y a qué precio. Registra cada versión con record_offer.
+4. El mandato de arriba es el nuevo límite: el acuerdo anterior no lo amplía. Un precio que antes era válido puede ya no serlo.
+5. Si aceptan dentro del mandato, usa stage_booking y confirma como en una reserva normal.
+6. Si piden algo fuera del mandato, explica el límite y llama request_handoff. No prometas nada.
+`;
+  }
+
   return `${invariants}${context}
 OBJETIVO DE ESTA LLAMADA ENTRANTE: entender el cambio sin modificar el acuerdo fuera del mandato.
 1. Identifícate como IA e informa la grabación.

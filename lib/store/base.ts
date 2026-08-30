@@ -462,6 +462,42 @@ export abstract class BaseSnapshotStore implements VoltaStore {
     });
   }
 
+  /**
+   * The operator changed the briefing, so the standing agreement no longer
+   * matches the authority it was made under. It is retired before anything is
+   * renegotiated — a commitment nobody can honour must not sit there looking
+   * live, and stageBooking refuses to open a second one beside it.
+   */
+  async supersedeCommitment(commitmentId: string, reason: string) {
+    return this.mutate((snapshot) => {
+      const commitment = snapshot.commitment;
+      if (!commitment || commitment.id !== commitmentId) throw new Error("Commitment not found");
+      commitment.status = transitionCommitment(commitment.status, "SUPERSEDED");
+      snapshot.evidence = null;
+      snapshot.operation.status = "AT_RISK";
+      this.pushEvent(snapshot, {
+        operationId: commitment.operationId,
+        callId: commitment.bookingCallId,
+        type: "commitment.superseded",
+        severity: "WARNING",
+        summary: reason,
+        payload: { commitmentId, previousRecap: commitment.recapText },
+      });
+      this.pushDecision(snapshot, {
+        operationId: commitment.operationId,
+        callId: commitment.bookingCallId,
+        kind: "COMMITMENT_SUPERSEDED",
+        outcome: "OBSERVE",
+        rationale: reason,
+        reasonCodes: ["briefing_changed"],
+        source: "COMMITMENT_ENGINE",
+        relatedOfferId: commitment.offerId,
+        idempotencyKey: `commitment:${commitmentId}:superseded`,
+      });
+      return commitment;
+    });
+  }
+
   async linkEvidence(
     commitmentId: string,
     input: Omit<Evidence, "id" | "operationId" | "commitmentId" | "verifiedAt">,

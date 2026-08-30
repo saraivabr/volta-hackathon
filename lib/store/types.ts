@@ -71,6 +71,7 @@ export interface VoltaStore {
   stageBooking(operationId: string, offerId: string, callId: string): Promise<StageBookingResult>;
   confirmBooking(commitmentId: string, confirmationToken: string): Promise<Commitment>;
   markRecapSent(commitmentId: string, messageSid: string): Promise<Commitment>;
+  supersedeCommitment(commitmentId: string, reason: string): Promise<Commitment>;
   linkEvidence(
     commitmentId: string,
     evidence: Omit<Evidence, "id" | "operationId" | "commitmentId" | "verifiedAt">,

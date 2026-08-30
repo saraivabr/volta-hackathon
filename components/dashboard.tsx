@@ -34,7 +34,7 @@ import { latestOffers, rankOffers } from "@/lib/domain/policy";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 import { openWhatsAppTakeover } from "@/lib/client/wacalls-takeover";
 
-type Action = "scan" | "delegate" | "book" | "takeover" | "simulate-inbound" | "reset" | "save";
+type Action = "scan" | "delegate" | "book" | "renegotiate" | "takeover" | "simulate-inbound" | "reset" | "save";
 
 interface WhatsAppStatus {
   configured: boolean;
@@ -480,6 +480,14 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
                 <button className="primary-button" data-testid="start-scan" onClick={() => saveBriefing(true)} disabled={busy !== null}><PhoneCall size={17} />{busy === "delegate" ? "Saving & starting calls…" : "Delegate operation"}</button>
               ) : winningOffer && !snapshot.commitment ? (
                 <button className="primary-button" data-testid="book-winner" onClick={() => run("book")} disabled={busy !== null}><CheckCircle2 size={17} />{busy === "book" ? "Calling winner…" : "Book winner"}</button>
+              ) : snapshot.commitment && !["SUPERSEDED", "REJECTED"].includes(snapshot.commitment.status) ? (
+                <button
+                  className="secondary-button"
+                  data-testid="renegotiate"
+                  onClick={() => run("renegotiate")}
+                  disabled={busy !== null}
+                  title="Edit the briefing first, then call the carrier back to renegotiate under the new mandate"
+                ><RefreshCw size={16} />{busy === "renegotiate" ? "Calling back…" : "Renegotiate"}</button>
               ) : null}
             </div>
           </div>

@@ -149,3 +149,13 @@
 **Why:** Widening the vocabulary to stop refusing real dispatchers went one step too far and swept in acknowledgement. On a live call the recording pipeline then anchored audio evidence to the counterparty saying "Okay" eighty-three seconds in, on a booking nobody had confirmed. Nothing was committed, because the recap had not been sent — but `markRecapSent` completes the chain whenever evidence already exists, so the next step would have committed a booking on the strength of a filler word.
 
 **Trade-off:** A dispatcher whose only answer is "listo" has to be asked again. That costs a turn. The alternative cost a commitment nobody made.
+
+## ADR-016 — Renegotiation retires the agreement before replacing it
+
+**Decision:** When the operator changes the briefing after a carrier has agreed, `Renegotiate` supersedes the standing commitment, clears its evidence, marks the operation `AT_RISK` and calls the same carrier back in a dedicated call mode that states what changed and negotiates under the new mandate.
+
+**Alternatives:** Amend the existing commitment in place; open a second commitment beside the first.
+
+**Why:** The challenge asks for a callback when circumstances change, without exceeding the mandate. An agreement made under an authority that no longer exists cannot keep presenting itself as live, and its audio evidence proves consent to terms nobody agreed to any more. Amending in place would leave the ledger unable to say which terms were confirmed when.
+
+**Trade-off:** The operation drops out of a committed state the moment renegotiation starts, before the new terms exist. That gap is the honest position: for those minutes there is genuinely no agreement in force.

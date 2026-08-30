@@ -129,6 +129,56 @@ export async function bookWinningOffer(operationId: string) {
   return store.getSnapshot(operationId);
 }
 
+/**
+ * The briefing changed after a carrier already agreed. Pact calls the same
+ * carrier back, says so, and negotiates the new terms under the new mandate —
+ * the standing agreement is retired first so nothing pretends to be live while
+ * it is being replaced.
+ */
+export async function startRenegotiation(operationId: string) {
+  const store = getStore();
+  const snapshot = await store.getSnapshot(operationId);
+  const commitment = snapshot.commitment;
+  if (!commitment || ["SUPERSEDED", "REJECTED"].includes(commitment.status)) {
+    throw new Error("There is no standing agreement to renegotiate");
+  }
+  const carrier = snapshot.carriers.find((item) => item.id === commitment.carrierId);
+  if (!carrier) throw new Error("Committed carrier not found");
+
+  await store.supersedeCommitment(
+    commitment.id,
+    "Briefing changed after agreement; calling the carrier back to renegotiate under the new mandate",
+  );
+  const call = await store.createCall({ operationId, carrierId: carrier.id, mode: "RENEGOTIATION" });
+
+  if (isVoiceConfigured() && process.env.VOLTA_DEMO_MODE !== "true") {
+    try {
+      const legs = await dialVoiceCall(call, carrier);
+      await store.updateCall(call.id, {
+        status: "RINGING",
+        twilioCallSid: legs.carrierCallSid,
+        twilioAgentCallSid: legs.agentCallSid,
+        provider: voiceProviderTag(),
+        providerCallId: legs.carrierCallSid,
+      });
+    } catch (error) {
+      await store.updateCall(call.id, { status: "FAILED", failureReason: String(error) });
+      throw error;
+    }
+  } else {
+    await store.updateCall(call.id, { status: "COMPLETED" });
+    await store.addEvent({
+      operationId,
+      callId: call.id,
+      type: "demo.renegotiation_simulated",
+      severity: "WARNING",
+      summary: "Renegotiation call simulated because live telephony is not configured",
+    });
+    await store.finalizeCallBrief(call.id);
+  }
+  return store.getSnapshot(operationId);
+}
+
 export async function takeOver(operationId: string) {
   const store = getStore();
   const snapshot = await store.getSnapshot(operationId);
