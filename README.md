@@ -57,6 +57,17 @@ The OpenAI key must be supplied through `OPENAI_API_KEY`. The ignored `Sem Tít
 4. Start the service, open the command center and scan its QR from WhatsApp → Linked devices.
 5. Add all variables from `.env.example` to Vercel. `APP_BASE_URL` must be the public HTTPS origin.
 
+A handoff is a real transfer. WhatsApp has no primitive for handing a call to
+another number, so the relay dials the handoff number itself and joins the two
+legs the moment that person answers: each side's audio becomes what plays down
+the other, the agent detaches, and whoever hangs up ends both. The counterparty
+never leaves the line, and nobody has to find a laptop. Set the handoff number in
+the briefing; leave it empty and the escalation stays in the dashboard.
+
+Inbound is open. `WACALLS_ALLOWED_PHONES` gates outbound only — it says who this
+service may ring. Somebody dialling in has already made that choice, and the
+agent asks permission to record in its first sentence.
+
 WaCalls uses an unofficial WhatsApp Web transport. Use a dedicated account, explicit participant consent and the exact phone allowlist. It is not PSTN. `VOLTA_VOICE_TRANSPORT` selects `telnyx`, `whatsapp` or `twilio` behind one dial interface; ADR-009 records why both transports exist.
 
 ## Authority and decisions
@@ -93,13 +104,37 @@ retried tool call cannot spend a counter.
 
 ### What counts as a yes
 
-A booking advances only on an answer that opens on an affirmative, carries no
-qualifier and stays short. The vocabulary is wide on purpose — `sí señor` and
-`correcto, procedemos` are how dispatchers actually speak, and refusing them
-reads as a broken agent. The shape stays narrow: `sí, pero cambia el horario`
-and `sí, mi jefe ya aprobó diez mil quinientos` do not get through. The same
-matcher locates the confirming segment inside the recording, so what the engine
-accepts is also what the evidence has to show.
+A booking advances only on an answer that agrees to the exact terms just read
+aloud, adding no condition to them. Two things decide that, in order.
+
+A deterministic veto runs first and is never overruled: a walk-back, a hedge, a
+deferral, a conditional with something hanging off it, or someone else's
+authority. `sí, mi jefe ya aprobó diez mil quinientos` stops here, and so does
+`confirmo se subirem o preço`.
+
+What survives the veto goes to a classifier, which reads the reply against the
+canonical recap and answers CONFIRMS, REFUSES, CONDITIONAL or AMBIGUOUS. It runs
+server-side, separately from the agent on the call — an agent that certifies its
+own success is the failure this design exists to prevent — and its verdict is
+written to the ledger with the reason behind it. If it cannot be reached, the
+strict rules decide instead, which refuse rather than accept.
+
+This replaced a word list, which was the wrong shape rather than merely too
+short. It refused `sim, confirmo` for holding a word it had never been taught,
+and each fix taught it one more while the next real sentence failed the same
+way. ADR-028 records the reasoning.
+
+### What language the call happens in
+
+The briefing names one — Spanish, Portuguese or English. It seeds the
+transcriber's hint and the agent's opening line, and the agent then follows
+whoever answers into their own language and stays there, recap included.
+
+The hint is not optional. Without one the transcriber detects a language per
+utterance, and on short 16 kHz call audio it detected Czech, Korean and Italian
+inside a single live call — the engine then judged nonsense and refused every
+answer, correctly. ADR-029 records why the hint is a setting rather than a
+constant.
 
 ## Design system
 
@@ -113,6 +148,13 @@ at 11.5px — before, forty-nine declarations were 10px or under and two were 6p
 Every text on the dashboard clears WCAG AA against its own background, keyboard
 focus is visible because the demo is driven live, and `prefers-reduced-motion`
 is honoured.
+
+The room is pinned to the viewport and each column scrolls in its own right, so
+the whole briefing is on screen at once. That is not a preference: the stage
+projector is 3072x960, the page was 1829px tall, and on that screen the ledger
+and the audit stream sat below a fold nobody in the audience can scroll. Beyond
+2200px the extra width goes to the side panels rather than stretching the centre,
+and the type scale steps up for the back of the room.
 
 ## Verification
 
@@ -141,4 +183,6 @@ The UI never labels an outcome committed until explicit verbal confirmation, a w
 - WhatsApp calls are real phone calls to consented E.164 accounts, but the transport is not PSTN.
 - Three-device parallel QA requires three consented numbers in `WACALLS_ALLOWED_PHONES`; automated tests never dial real people.
 - Production WaCalls runs persistently on Azure; availability still depends on the VPS, Caddy and the unofficial WhatsApp Web session staying healthy.
+- The confirmation classifier puts a model call in the booking path. It fails closed — unreachable means the strict rules refuse — but it is one more dependency during a live call.
+- A counterparty who switches language mid-call is still transcribed with the opening language's bias. The agent follows them by voice and the classifier judges intent, so the booking path tolerates it; the transcript reads worse than the call sounded.
 - A simulated booking stops at `RECAP_SENT`. Without a recording there is no audio evidence, and the ledger never claims otherwise.
