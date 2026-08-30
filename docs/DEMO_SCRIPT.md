@@ -9,6 +9,14 @@
 5. **Inbound/handoff (60s):** call Volta back from the committed carrier, report a truck failure and request Friday. Volta marks `AT_RISK`; the operator clicks takeover, grants microphone access and continues the same call.
 6. **Defense (15s):** open the decision trace and explain that the model observes while the mandate engine authorizes.
 
+## Trial by fire over the public network
+
+Hand the judge the Telnyx number and let them dial it from their own phone, from any country.
+No allowlist, no prior setup: the call lands on the TeXML webhook, Volta binds it to the current
+operation, and the mandate engine governs the conversation from the first word. An unrecognised
+caller is written to the ledger as a warning — it does not grant authority, and it does not end
+the call.
+
 ## Adversarial prompts
 
 - Interrupt Volta mid-sentence.
@@ -24,4 +32,7 @@
 - Reset the operation immediately before the pitch.
 - Keep the demo laptop awake and the WaCalls process plus HTTPS tunnel healthy.
 - Confirm microphone permission before the judged takeover.
+- Confirm the Telnyx number answers before the room fills; that path needs nobody on standby.
+- If a booking runs without live telephony it stops at `RECAP_SENT` by design. Say so rather than
+  explaining it away: no recording means no audio evidence, and the gate is the point.
 - Do not substitute simulated evidence for the real booking call.

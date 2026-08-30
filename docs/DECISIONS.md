@@ -99,3 +99,23 @@
 **Why:** The adversarial evaluation has a judge dialling from their own phone. Rejecting an unknown caller failed the single most heavily weighted moment of the demo, and an allowlist cannot be populated in advance with a number nobody knows yet.
 
 **Trade-off:** An unrecognised caller reaches the agent. Authority is unaffected — the mandate engine still governs every offer, change and commitment — and the uncertain identity is written to the ledger as a warning.
+
+## ADR-011 — Resolve the recording peak on serialization, not per sample
+
+**Decision:** Sum both sides of the call into the mono timeline unclamped and scale once, on WAV serialization, if the peak exceeds full scale.
+
+**Alternatives:** Keep the per-sample clamp; lower the per-side gain until two speakers cannot overshoot.
+
+**Why:** Each side was attenuated then clamped as it was mixed, so any overlap flat-topped — and overlap is precisely what barge-in produces. A clipped confirmation is poor input for diarization, which is the step that turns a spoken yes into linked audio evidence. Lowering the gain instead would have made quiet calls unusable.
+
+**Trade-off:** A single loud transient scales the whole recording down. That is recoverable; clipping is not.
+
+## ADR-012 — A simulated booking may not present itself as verified
+
+**Decision:** When live telephony is unavailable, a booking stops at `RECAP_SENT` and the ledger records that no audio evidence exists.
+
+**Alternatives:** Keep the placeholder segment so the demo shows a complete chain; label the placeholder as simulated in the UI.
+
+**Why:** The commitment ledger is the one surface whose whole purpose is to be checkable. Manufacturing a timestamp there asserts something nobody can falsify, and a single judge pressing play would cost more than the missing chain is worth.
+
+**Trade-off:** The demo cannot show a fully green commitment without a real recorded call. That is the honest state of the system, and the gate visibly holding is the stronger claim.

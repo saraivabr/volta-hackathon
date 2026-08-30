@@ -111,22 +111,18 @@ export async function bookWinningOffer(operationId: string) {
     await store.updateCall(call.id, { status: "COMPLETED" });
     const staged = await store.stageBooking(operationId, selected.id, call.id);
     await store.confirmBooking(staged.commitment.id, staged.confirmationToken);
-    await store.markRecapSent(staged.commitment.id, "SM_DEMO_VERIFIED");
-    await store.linkEvidence(staged.commitment.id, {
-      callId: call.id,
-      recordingUrl: "/api/demo/audio",
-      storagePath: null,
-      speaker: "dispatcher",
-      segmentText: "Sí, confirmo todos los términos.",
-      startSeconds: 4.17,
-      endSeconds: 7.8,
-    });
+    await store.markRecapSent(staged.commitment.id, "SM_SIMULATED_NO_AUDIO");
+    // A simulated call produces no recording, so there is nothing to link and
+    // the commitment stays short of COMMITTED. Manufacturing an audio segment
+    // here would put an unfalsifiable claim on the one surface whose whole
+    // purpose is to be checkable.
     await store.addEvent({
       operationId,
       callId: call.id,
       type: "demo.booking_simulated",
       severity: "WARNING",
-      summary: "Booking confirmation simulated because Twilio is not configured",
+      summary:
+        "Booking confirmation simulated because live telephony is not configured; no audio evidence exists, so this commitment stops at RECAP_SENT",
     });
     await store.finalizeCallBrief(call.id);
   }

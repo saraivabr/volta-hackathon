@@ -5,6 +5,9 @@ flowchart LR
   OP[Human operator] --> UI[Next.js command center]
   UI --> API[Authenticated control API]
   API --> STATE[(Supabase snapshot + append-only ledger)]
+  API --> TX[Telnyx TeXML]
+  TX --> PSTN[Public phone network]
+  PSTN --> SIP[OpenAI Realtime SIP]
   API --> WA[WaCalls voice service]
   WA --> C1[Carrier 1 WhatsApp phone]
   WA --> C2[Carrier 2 WhatsApp phone]
@@ -49,6 +52,7 @@ stateDiagram-v2
 
 - Vercel owns the command center, authenticated APIs, MCP server and webhooks.
 - Supabase owns current operation state, durable jobs, private recordings and append-only audit rows.
+- Telnyx owns the public-network leg and hands media to the OpenAI Realtime SIP endpoint; no bridge of ours sits in that path.
 - WaCalls owns WhatsApp signaling, bidirectional PCM, Realtime bridging, barge-in and browser takeover.
 - The production WaCalls process runs on an Azure VPS behind Caddy; SQLite preserves the paired device and Azure NSG exposes only HTTPS plus the constrained WebRTC UDP range.
 - OpenAI Realtime owns the live Spanish conversation; the deterministic backend owns authority.

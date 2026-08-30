@@ -57,6 +57,8 @@ No written recap, no commitment.
 
 No real audio timestamp, no commitment.
 
+A simulated run stops at `RECAP_SENT`. The gate is the product; faking the last step would forfeit it.
+
 ---
 
 # Ugly cases reduce autonomy
@@ -75,10 +77,11 @@ No real audio timestamp, no commitment.
 - `gpt-realtime-2.1` owns live Spanish conversation.
 - Remote MCP tools submit structured facts.
 - The deterministic backend owns authorization, ranking and commitment.
-- WaCalls owns phone transport, PCM recording and browser takeover.
+- Telnyx carries the public-network leg; WaCalls carries the consented WhatsApp leg. One dial interface, selected by configuration.
+- WaCalls owns PCM recording and browser takeover.
 - Supabase owns operation state, private evidence, jobs and append-only audit events.
 
-Twilio/PSTN was considered but unavailable; the transport risk is documented openly.
+The transport is configuration, not product. Outbound to Brazil waits on carrier verification; that limit is stated rather than hidden.
 
 ---
 
