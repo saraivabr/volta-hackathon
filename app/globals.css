@@ -66,7 +66,7 @@ button { color: inherit; }
 .whatsapp-icon { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid currentColor; color: var(--lime); background: var(--lime-dim); }
 .whatsapp-connection.pairing .whatsapp-icon { color: var(--amber); background: var(--amber-dim); }
 .whatsapp-connection img { width: 132px; height: 132px; border: 7px solid white; }
-.dashboard-grid { display: grid; grid-template-columns: 360px minmax(680px, 1fr) 270px; gap: 0; min-height: calc(100vh - 140px); }
+.dashboard-grid { display: grid; grid-template-columns: 360px minmax(620px, 1fr) 340px; gap: 0; min-height: calc(100vh - 140px); }
 .mandate-panel, .ledger-panel { background: rgba(14,18,16,.96); padding: 22px 18px; }
 .mandate-panel { border-right: 1px solid var(--line); }
 .ledger-panel { border-left: 1px solid var(--line); padding-right: 12px; }
@@ -197,14 +197,14 @@ td span { display: block; color: var(--muted); font-size: 8px; margin-top: 2px; 
 .evidence-meta span { display: flex; gap: 4px; align-items: center; }
 
 .ledger-list { display: flex; flex-direction: column; max-height: calc(100vh - 240px); overflow-y: auto; padding-right: 4px; }
-.ledger-item { display: grid; grid-template-columns: 12px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+.ledger-item { display: grid; grid-template-columns: 12px 1fr; gap: 9px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
 .ledger-marker { width: 6px; height: 6px; border-radius: 50%; background: #5f6761; margin-top: 4px; }
 .ledger-item.success .ledger-marker { background: var(--lime); box-shadow: 0 0 8px rgba(185,243,59,.5); }
 .ledger-item.warning .ledger-marker { background: var(--amber); }
 .ledger-item.danger .ledger-marker { background: var(--red); }
-.ledger-item-head { display: flex; justify-content: space-between; gap: 6px; color: var(--muted); font: 6px var(--font-mono); text-transform: uppercase; }
-.ledger-item p { margin: 5px 0 0; color: #c3c8c0; font-size: 9px; line-height: 1.35; }
-.ledger-footer { display: flex; align-items: center; gap: 6px; color: var(--muted); font: 7px var(--font-mono); margin-top: 14px; }
+.ledger-item-head { display: flex; justify-content: space-between; gap: 7px; color: var(--muted); font: 8px var(--font-mono); text-transform: uppercase; }
+.ledger-item p { margin: 6px 0 0; color: #d2d7cf; font-size: 12px; line-height: 1.42; }
+.ledger-footer { display: flex; align-items: center; gap: 6px; color: var(--muted); font: 8px var(--font-mono); margin-top: 14px; }
 .pulse-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--lime); animation: pulse 1.5s infinite; }
 @keyframes pulse { 50% { opacity: .25; box-shadow: 0 0 0 5px rgba(185,243,59,.08); } }
 
@@ -215,6 +215,15 @@ td span { display: block; color: var(--muted); font-size: 8px; margin-top: 2px; 
 .escalation-head h2 { font: 800 21px var(--font-display); text-transform: uppercase; margin: 8px 0 15px; }
 .live-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--red); font: 8px var(--font-mono); letter-spacing: .1em; }
 .live-badge span { width: 6px; height: 6px; border-radius: 50%; background: var(--red); box-shadow: 0 0 9px var(--red); }
+.escalation-controls { display: flex; align-items: center; gap: 8px; }
+.drawer-toggle { display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  background: none; border: 1px solid #6a3027; color: #e6b3ab; cursor: pointer; }
+.drawer-toggle:hover { background: #24160f; color: #fff; }
+/* Collapsed it still announces itself, but stops covering the operation behind it. */
+.escalation-drawer.collapsed { width: 320px; padding-bottom: 14px; }
+.escalation-drawer.collapsed .escalation-head { margin-bottom: 0; }
+.escalation-drawer.collapsed h2 { font-size: 13px; }
+
 .escalation-drawer dl { margin: 0 0 16px; }
 .escalation-drawer dl div { border-top: 1px solid #37211e; padding: 8px 0; }
 .escalation-drawer dt { color: #9f706a; font: 7px var(--font-mono); text-transform: uppercase; margin-bottom: 3px; }

@@ -9,6 +9,8 @@ import {
   AudioLines,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   CircleDot,
   Clock3,
   Headphones,
@@ -120,6 +122,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
+  const [escalationOpen, setEscalationOpen] = useState(true);
   const [editing, setEditing] = useState(false);
   const [whatsapp, setWhatsApp] = useState<WhatsAppStatus | null>(null);
   const [form, setForm] = useState(() => briefingFromSnapshot(initialSnapshot));
@@ -610,11 +613,30 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
       </div>
 
       {snapshot.escalation && snapshot.escalation.status !== "RESOLVED" ? (
-        <aside className="escalation-drawer">
+        <aside className={escalationOpen ? "escalation-drawer" : "escalation-drawer collapsed"}>
           <div className="escalation-stripe" />
-          <div className="escalation-head"><div><span className="live-badge"><span />LIVE ESCALATION</span><h2>Authority boundary reached</h2></div><StatusPill status={snapshot.escalation.status} /></div>
-          <dl><div><dt>Operation</dt><dd>{snapshot.operation.customer} / {snapshot.operation.containerReference}</dd></div><div><dt>Current issue</dt><dd>{snapshot.escalation.reason}</dd></div><div><dt>Requested change</dt><dd>{snapshot.escalation.requestedChange}</dd></div><div><dt>Mandate conflict</dt><dd>Agent is not authorized to change the agreed terms.</dd></div></dl>
-          <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{snapshot.escalation.status === "CONNECTED" ? "HUMAN CONNECTED" : busy === "takeover" ? "CONNECTING MICROPHONE…" : "TAKE OVER CALL"}</button>
+          <div className="escalation-head">
+            <div><span className="live-badge"><span />LIVE ESCALATION</span><h2>Authority boundary reached</h2></div>
+            <div className="escalation-controls">
+              <StatusPill status={snapshot.escalation.status} />
+              <button
+                type="button"
+                className="drawer-toggle"
+                onClick={() => setEscalationOpen((open) => !open)}
+                aria-expanded={escalationOpen}
+                aria-label={escalationOpen ? "Minimise escalation" : "Expand escalation"}
+                title={escalationOpen ? "Minimise" : "Expand"}
+              >
+                {escalationOpen ? <ChevronDown size={15} /> : <ChevronUp size={15} />}
+              </button>
+            </div>
+          </div>
+          {escalationOpen ? (
+            <>
+              <dl><div><dt>Operation</dt><dd>{snapshot.operation.customer} / {snapshot.operation.containerReference}</dd></div><div><dt>Current issue</dt><dd>{snapshot.escalation.reason}</dd></div><div><dt>Requested change</dt><dd>{snapshot.escalation.requestedChange}</dd></div><div><dt>Mandate conflict</dt><dd>Agent is not authorized to change the agreed terms.</dd></div></dl>
+              <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{snapshot.escalation.status === "CONNECTED" ? "HUMAN CONNECTED" : busy === "takeover" ? "CONNECTING MICROPHONE…" : "TAKE OVER CALL"}</button>
+            </>
+          ) : null}
         </aside>
       ) : null}
     </main>
