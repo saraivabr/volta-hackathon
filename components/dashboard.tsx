@@ -30,6 +30,7 @@ import {
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { OperationLanguage, CallAttempt, Offer, OperationSnapshot, Severity } from "@/lib/domain/types";
+import type { Role } from "@/lib/server/auth";
 import { latestOffers, rankOffers } from "@/lib/domain/policy";
 import { isTranscriptionContextEcho } from "@/lib/domain/transcripts";
 import { openWhatsAppTakeover } from "@/lib/client/wacalls-takeover";
@@ -131,7 +132,17 @@ async function request(input: string, init?: RequestInit): Promise<Response> {
   }
 }
 
-export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnapshot }) {
+export function Dashboard({
+  initialSnapshot,
+  role = "operator",
+}: {
+  initialSnapshot: OperationSnapshot;
+  role?: Role;
+}) {
+  // A viewer sees the operation exactly as the operator does, and drives none
+  // of it. Controls that dial, spend, rewrite the mandate or reset the run are
+  // simply not rendered for them; the server refuses those routes regardless.
+  const canOperate = role === "operator";
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [busy, setBusy] = useState<Action | null>(null);
@@ -429,10 +440,14 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
         <form className="mandate-panel briefing-panel" ref={briefingForm} onSubmit={(event) => event.preventDefault()}>
           <div className="section-heading">
             <div><span className="section-number">A</span><h2>Operation briefing</h2></div>
-            <button type="button" className="text-button" disabled={busy !== null} onClick={() => {
-              if (editing) setForm(briefingFromSnapshot(snapshot));
-              setEditing((value) => !value);
-            }}>{editing ? "Cancel" : "Edit briefing"}</button>
+            {canOperate ? (
+              <button type="button" className="text-button" disabled={busy !== null} onClick={() => {
+                if (editing) setForm(briefingFromSnapshot(snapshot));
+                setEditing((value) => !value);
+              }}>{editing ? "Cancel" : "Edit briefing"}</button>
+            ) : (
+              <span className="text-button" aria-disabled="true">Read-only</span>
+            )}
           </div>
           <div className="mandate-lock"><ShieldCheck size={19} /><div><strong>System authority</strong><span>Phone claims cannot expand it</span></div></div>
 
@@ -522,7 +537,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
               </div>
             ))}
           </div>
-          {editing ? <button type="button" className="secondary-button full-button" onClick={() => saveBriefing(false)} disabled={busy === "save"}><Save size={15} />{busy === "save" ? "Saving…" : "Save briefing"}</button> : null}
+          {canOperate && editing ? <button type="button" className="secondary-button full-button" onClick={() => saveBriefing(false)} disabled={busy === "save"}><Save size={15} />{busy === "save" ? "Saving…" : "Save briefing"}</button> : null}
         </form>
 
         <section className="main-stage">
@@ -547,6 +562,11 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
               )}
             </div>
             <div className="outcome-actions">
+              {!canOperate ? (
+                <span className="viewer-note">Read-only session · the operation is driven by the team</span>
+              ) : null}
+              {canOperate ? (
+              <>
               <button className="secondary-button" onClick={() => run("reset")} disabled={busy !== null}><RefreshCw size={15} />{busy === "reset" ? "Preparing…" : "New operation"}</button>
               {agreed && !snapshot.escalation ? (
                 <button className="secondary-button" onClick={() => run("simulate-inbound")} disabled={busy !== null}><AlertTriangle size={15} />Inbound exception</button>
@@ -563,6 +583,8 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
                   disabled={busy !== null}
                   title="Edit the briefing first, then call the carrier back to renegotiate under the new mandate"
                 ><RefreshCw size={16} />{busy === "renegotiate" ? "Calling back…" : "Renegotiate"}</button>
+              ) : null}
+              </>
               ) : null}
             </div>
           </div>
@@ -717,7 +739,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
           {escalationOpen ? (
             <>
               <dl><div><dt>Operation</dt><dd>{snapshot.operation.customer} / {snapshot.operation.containerReference}</dd></div><div><dt>Current issue</dt><dd>{snapshot.escalation.reason}</dd></div><div><dt>Requested change</dt><dd>{snapshot.escalation.requestedChange}</dd></div><div><dt>Mandate conflict</dt><dd>Agent is not authorized to change the agreed terms.</dd></div></dl>
-              <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{takeoverLabel(snapshot, busy === "takeover")}</button>
+              {canOperate ? <button className="takeover-button" onClick={takeOverLive} disabled={busy === "takeover" || snapshot.escalation.status === "CONNECTED"}><PhoneCall size={18} />{takeoverLabel(snapshot, busy === "takeover")}</button> : null}
             </>
           ) : null}
         </aside>

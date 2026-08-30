@@ -15,7 +15,14 @@ Pact turns logistics phone conversations into verified operational commitments w
 
 Live command center: [volta-hackathon.vercel.app](https://volta-hackathon.vercel.app)
 
-Access code: `pact-ledger-1369`
+Access code: `pact-judge-2041`
+
+This opens a read-only session: every panel, the full ledger, the decision trace
+and the recordings, exactly as the operator sees them, live. It cannot dial a
+phone, rewrite the mandate or reset the run — a published code that could do
+those things lets anyone interrupt a demo in progress. The operator code stays
+with the team, and the server refuses the operator routes for a viewer whatever
+the interface offers.
 
 ## Architecture
 

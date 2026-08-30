@@ -1,11 +1,11 @@
-import { requireOperator } from "@/lib/server/auth";
+import { requireOperator, requireSession } from "@/lib/server/auth";
 import { getStore } from "@/lib/store";
 import { isTwilioConfigured } from "@/lib/providers/twilio";
 import { downloadRecording } from "@/lib/server/recording-storage";
 
 export async function GET(_request: Request, context: { params: Promise<{ callId: string }> }) {
   try {
-    await requireOperator();
+    await requireSession();
     const { callId } = await context.params;
     const snapshot = await getStore().getSnapshot();
     const evidence = snapshot.evidence;

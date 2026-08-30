@@ -1,6 +1,6 @@
 import QRCode from "qrcode";
 import { getWaCallsStatus, isWaCallsConfigured, pairWaCallsSession } from "@/lib/providers/wacalls";
-import { requireOperator } from "@/lib/server/auth";
+import { requireOperator, requireSession } from "@/lib/server/auth";
 
 // Each action fans out to Supabase and the voice service. The platform default
 // is far too short for that, and a killed function reaches the browser as an
@@ -40,7 +40,7 @@ async function responseForStatus(repair = false) {
 
 export async function GET() {
   try {
-    await requireOperator();
+    await requireSession();
     return await responseForStatus();
   } catch (error) {
     return statusError(error);

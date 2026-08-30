@@ -357,3 +357,6 @@ td span { display: block; color: var(--muted); font-size: var(--fs-label); margi
   .transcript-stream, .decision-stream { max-height: 220px; }
   .carrier-card { min-height: 168px; }
 }
+
+/* A viewer is told why the controls are absent, rather than left to wonder. */
+.viewer-note { font-size: var(--fs-label); color: var(--muted); letter-spacing: .04em; text-transform: uppercase; align-self: center; }

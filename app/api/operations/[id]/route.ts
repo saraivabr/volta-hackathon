@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getStore } from "@/lib/store";
 import { apiError, ok } from "@/lib/server/http";
-import { requireOperator } from "@/lib/server/auth";
+import { requireOperator, requireSession } from "@/lib/server/auth";
 
 // Each action fans out to Supabase and the voice service. The platform default
 // is far too short for that, and a killed function reaches the browser as an
@@ -48,7 +48,7 @@ const patchSchema = z.object({
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await requireOperator();
+    await requireSession();
     const { id } = await context.params;
     return ok(await getStore().getSnapshot(id));
   } catch (error) {

@@ -11,16 +11,17 @@ export async function POST(request: Request) {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
     if (!allowRequest(`login:${ip}`, 5, 60_000)) throw new HttpError(429, "Too many attempts");
     const { code } = inputSchema.parse(await request.json());
-    if (!verifyAccessCode(code)) throw new HttpError(401, "Invalid access code");
+    const role = verifyAccessCode(code);
+    if (!role) throw new HttpError(401, "Invalid access code");
     const jar = await cookies();
-    jar.set(SESSION_COOKIE, await issueSession(), {
+    jar.set(SESSION_COOKIE, await issueSession(role), {
       httpOnly: true,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 12,
     });
-    return ok({ redirect: "/" });
+    return ok({ redirect: "/", role });
   } catch (error) {
     return apiError(error);
   }
