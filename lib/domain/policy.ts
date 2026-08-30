@@ -5,12 +5,26 @@ export interface PolicyDecision {
   violations: string[];
 }
 
+/**
+ * How many counter-offers the operator authorised. The opening quote is not a
+ * counter, so a budget of two allows revisions 1, 2 and 3. Withholding
+ * `negotiateRate` withholds haggling entirely: take the first price or leave it.
+ */
+export function counterBudget(mandate: Mandate): number {
+  return mandate.negotiateRate ? mandate.maximumCounters : 0;
+}
+
 export function evaluateOffer(
   operation: Operation,
   mandate: Mandate,
   offer: Pick<OfferInput, "amount" | "currency" | "pickupDate" | "pickupTime" | "conditions">,
+  revision = 1,
 ): PolicyDecision {
   const violations: string[] = [];
+
+  if (revision - 1 > counterBudget(mandate)) {
+    violations.push(mandate.negotiateRate ? "counter_limit_exhausted" : "rate_negotiation_not_authorized");
+  }
 
   if (offer.currency !== mandate.currency) violations.push("currency_mismatch");
   if (offer.amount > mandate.maximumRate) violations.push("rate_above_mandate");

@@ -119,3 +119,23 @@
 **Why:** The commitment ledger is the one surface whose whole purpose is to be checkable. Manufacturing a timestamp there asserts something nobody can falsify, and a single judge pressing play would cost more than the missing chain is worth.
 
 **Trade-off:** The demo cannot show a fully green commitment without a real recorded call. That is the honest state of the system, and the gate visibly holding is the stronger claim.
+
+## ADR-013 — Every field the mandate shows is enforced by the engine
+
+**Decision:** `maximumCounters` and `negotiateRate` are evaluated server-side on each recorded offer, alongside the rate ceiling, pickup window and accessorials. A revision past the authorised budget is refused and the agent is told to stop negotiating.
+
+**Alternatives:** Leave both to the prompt, as they were; drop them from the operator's briefing.
+
+**Why:** The operator sets seven limits in the briefing, and the pitch is that a limit is server policy rather than a request to the model. Two of them were reaching the model as text and nothing more — `negotiateRate` was read by nothing at all. A jury asking what stops the third counter-offer deserves an answer that is not "the prompt asks it nicely."
+
+**Trade-off:** A retried or echoed tool call would otherwise burn a counter, so an offer restating the standing terms returns the existing revision instead of opening a new one.
+
+## ADR-014 — Consent is recognised by shape, not by exact phrase
+
+**Decision:** Accept an answer that opens on an affirmative, carries no qualifier and stays short. Reject anything containing a walk-back, hedge or condition, however affirmative it sounds.
+
+**Alternatives:** Keep the closed list of four exact phrases; hand the judgement to the model.
+
+**Why:** The previous matcher accepted `sí`, `confirmo`, `de acuerdo` and `correcto` and nothing else — a dispatcher saying "sí señor" or "correcto, procedemos" was refused. That reads as a broken agent rather than a careful one, and the same matcher locates the confirming segment in the recording, so a natural yes also produced no audio evidence. Widening the vocabulary while holding the shape keeps "sí, pero cambia el horario" and "sí, mi jefe ya aprobó" out.
+
+**Trade-off:** A yes buried in a long sentence is refused. Asking again costs a turn; accepting an argument as consent costs the commitment.

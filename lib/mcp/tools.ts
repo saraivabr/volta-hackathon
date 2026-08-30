@@ -119,6 +119,18 @@ const schemas = {
   request_handoff: base.extend({ reason: z.string().min(1), requestedChange: z.string().min(1) }),
 };
 
+/** The agent needs to know what to do next, not just that it was refused. */
+function instructionFor(eligible: boolean, violations: string[]): string {
+  if (eligible) return "Offer recorded. Do not call it a booking.";
+  if (violations.includes("counter_limit_exhausted")) {
+    return "The authorised number of counter-offers is spent. Take the best standing offer or request_handoff — do not counter again.";
+  }
+  if (violations.includes("rate_negotiation_not_authorized")) {
+    return "You were not authorised to negotiate price. Record what they quoted, do not counter, and move on.";
+  }
+  return "Offer is outside authority. Do not accept it.";
+}
+
 export async function executeTool(name: string, rawArguments: unknown): Promise<unknown> {
   const store = getStore();
   switch (name) {
@@ -150,9 +162,7 @@ export async function executeTool(name: string, rawArguments: unknown): Promise<
         revision: offer.revision,
         eligible: offer.eligible,
         violations: offer.violations,
-        instruction: offer.eligible
-          ? "Offer recorded. Do not call it a booking."
-          : "Offer is outside authority. Do not accept it.",
+        instruction: instructionFor(offer.eligible, offer.violations),
       };
     }
     case "stage_booking": {

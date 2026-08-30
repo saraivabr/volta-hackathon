@@ -35,6 +35,20 @@ function normalizeSnapshot(snapshot: OperationSnapshot): OperationSnapshot {
   return snapshot;
 }
 
+/** True when the incoming offer says exactly what the standing one already says. */
+function restatesOffer(standing: Offer, incoming: OfferInput): boolean {
+  const sameConditions =
+    standing.conditions.length === (incoming.conditions?.length ?? 0) &&
+    standing.conditions.every((condition) => incoming.conditions?.includes(condition));
+  return (
+    standing.amount === incoming.amount &&
+    standing.currency === incoming.currency &&
+    standing.pickupDate === incoming.pickupDate &&
+    standing.pickupTime === incoming.pickupTime &&
+    sameConditions
+  );
+}
+
 export abstract class BaseSnapshotStore implements VoltaStore {
   protected abstract readSnapshot(operationId?: string): Promise<OperationSnapshot>;
   protected abstract writeSnapshot(snapshot: OperationSnapshot, expectedVersion: number): Promise<boolean>;
@@ -249,9 +263,16 @@ export abstract class BaseSnapshotStore implements VoltaStore {
       const previous = snapshot.offers
         .filter((offer) => offer.carrierId === input.carrierId)
         .sort((a, b) => b.revision - a.revision)[0];
+
+      // A retried or echoed tool call must not spend a counter-offer. Restating
+      // the standing terms is not a new position, so it returns the offer that
+      // already exists rather than opening a revision against the budget.
+      if (previous && !previous.supersededAt && restatesOffer(previous, input)) return previous;
+
       if (previous && !previous.supersededAt) previous.supersededAt = now();
 
-      const decision = evaluateOffer(snapshot.operation, snapshot.mandate, input);
+      const revision = (previous?.revision ?? 0) + 1;
+      const decision = evaluateOffer(snapshot.operation, snapshot.mandate, input, revision);
       const supportingTranscriptIds = snapshot.transcripts
         .filter((segment) => segment.callId === input.callId && segment.speaker === "COUNTERPARTY")
         .slice(-1)
@@ -260,7 +281,7 @@ export abstract class BaseSnapshotStore implements VoltaStore {
         id: randomUUID(),
         ...input,
         conditions: input.conditions ?? [],
-        revision: (previous?.revision ?? 0) + 1,
+        revision,
         eligible: decision.eligible,
         violations: decision.violations,
         supersededAt: null,

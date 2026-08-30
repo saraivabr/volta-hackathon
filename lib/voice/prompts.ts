@@ -17,7 +17,9 @@ export function buildCallPrompt(snapshot: OperationSnapshot, call: CallAttempt, 
 OPERACIÓN: ${snapshot.operation.reference}
 RUTA: ${snapshot.operation.pickupLocation} a ${snapshot.operation.deliveryLocation}
 RECOLECCIÓN: ${snapshot.operation.pickupDate}, ${snapshot.operation.pickupWindowStart}-${snapshot.operation.pickupWindowEnd}
-MANDATO: objetivo MXN ${snapshot.mandate.targetRate}; máximo MXN ${snapshot.mandate.maximumRate}; máximo ${snapshot.mandate.maximumCounters} contrapropuestas.
+MANDATO: objetivo MXN ${snapshot.mandate.targetRate}; máximo MXN ${snapshot.mandate.maximumRate}.
+NEGOCIACIÓN: ${snapshot.mandate.negotiateRate ? `puedes contraproponer hasta ${snapshot.mandate.maximumCounters} veces por transportista` : "no estás autorizado a negociar el precio; registra lo que coticen y no contrapongas"}.
+El servidor cuenta las revisiones y rechaza la que exceda ese límite: cuando record_offer devuelva counter_limit_exhausted o rate_negotiation_not_authorized, deja de negociar y toma la mejor oferta vigente o pide request_handoff.
 TRANSPORTISTA: ${carrier?.name ?? "por identificar"}; contacto esperado: ${carrier?.dispatcher ?? "desconocido"}.
 CALL_ID: ${call.id}; OPERATION_ID: ${snapshot.operation.id}; CARRIER_ID: ${carrier?.id ?? "unknown"}.
 `;
