@@ -14,6 +14,7 @@ Pact turns logistics phone conversations into verified operational commitments w
 - Supabase Postgres snapshot persistence, append-only audit rows, private recording Storage and RLS
 
 Live command center: [volta-hackathon.vercel.app](https://volta-hackathon.vercel.app)
+Demo access token: volta-2041-64d508
 
 ## Architecture
 
