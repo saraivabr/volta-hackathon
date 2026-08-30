@@ -54,6 +54,12 @@ export function buildRealtimeSession(
         noise_reduction: { type: "near_field" },
         transcription: {
           model: process.env.OPENAI_TRANSCRIBE_MODEL?.trim() || "gpt-4o-mini-transcribe",
+          // Without this the transcriber guesses per utterance, and on short
+          // noisy 16 kHz call audio it guesses badly — a live call came back
+          // as Czech, Korean and Italian, so every answer read as ambiguous
+          // and no booking could close. The mandate fixes the language of the
+          // conversation, so fix the transcriber to it too.
+          language: process.env.OPENAI_TRANSCRIBE_LANGUAGE?.trim() || "es",
         },
         turn_detection: {
           type: "server_vad",

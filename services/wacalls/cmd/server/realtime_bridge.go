@@ -170,20 +170,11 @@ func (b *RealtimeBridge) readLoop() {
 		case "input_audio_buffer.timeout_triggered":
 			count := b.silenceTimeouts.Add(1)
 			if count == 1 {
-				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
-					"output_modalities": []string{"audio"},
-					"instructions":      "Hay silencio. Pregunta brevemente: ¿Sigue ahí?",
-				}})
+				b.createResponse("Hay silencio. Pregunta brevemente: ¿Sigue ahí?")
 			} else if count == 3 {
-				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
-					"output_modalities": []string{"audio"},
-					"instructions":      "Sigue el silencio. Haz un último intento breve para confirmar si la persona continúa en la llamada.",
-				}})
+				b.createResponse("Sigue el silencio. Haz un último intento breve para confirmar si la persona continúa en la llamada.")
 			} else if count >= 6 {
-				_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
-					"output_modalities": []string{"audio"},
-					"instructions":      "Despídete brevemente porque no hubo respuesta y explica que no se creó ningún compromiso nuevo.",
-				}})
+				b.createResponse("Despídete brevemente porque no hubo respuesta y explica que no se creó ningún compromiso nuevo.")
 				go func() {
 					select {
 					case <-time.After(3 * time.Second):
@@ -205,6 +196,20 @@ func (b *RealtimeBridge) readLoop() {
 	}
 }
 
+// createResponse asks the model to speak, unless it already is. The server VAD
+// creates its own responses when the counterparty stops talking, so an
+// unguarded create races it and the API rejects the call with "Conversation
+// already has an active response in progress" — which ended a live call.
+func (b *RealtimeBridge) createResponse(instructions string) {
+	if !b.responseActive.CompareAndSwap(false, true) {
+		return
+	}
+	_ = b.send(map[string]any{"type": "response.create", "response": map[string]any{
+		"output_modalities": []string{"audio"},
+		"instructions":      instructions,
+	}})
+}
+
 func (b *RealtimeBridge) OnCallState(status CallStatus) {
 	if status != StatusConnected {
 		return
@@ -221,13 +226,7 @@ func (b *RealtimeBridge) maybeGreetLocked() {
 		return
 	}
 	b.greeted = true
-	_ = b.send(map[string]any{
-		"type": "response.create",
-		"response": map[string]any{
-			"output_modalities": []string{"audio"},
-			"instructions":      "Inicia ahora en español: identifícate como Volta, un agente de IA, informa que la llamada puede ser grabada y pregunta si puedes continuar.",
-		},
-	})
+	b.createResponse("Inicia ahora en español: identifícate como Volta, un agente de IA, informa que la llamada puede ser grabada y pregunta si puedes continuar.")
 }
 
 func (b *RealtimeBridge) WritePeerPCM(pcm []float32) {
