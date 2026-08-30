@@ -122,15 +122,14 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [busy, setBusy] = useState<Action | null>(null);
   const [error, setError] = useState("");
-  const [escalationOpen, setEscalationOpen] = useState(true);
+  // The drawer demands the screen while somebody still has to act, and steps off
+  // the market comparison once a human is on the line. An operator who opens or
+  // closes it by hand keeps that choice until the escalation moves on, so this
+  // is derived rather than synced through an effect.
   const escalationStatus = snapshot.escalation?.status;
-  // It demands the screen while somebody still has to act. Once a human is on
-  // the line the action is done, so it steps back off the market comparison
-  // rather than waiting to be dismissed.
-  useEffect(() => {
-    if (escalationStatus === "CONNECTED") setEscalationOpen(false);
-    if (escalationStatus === "OPEN") setEscalationOpen(true);
-  }, [escalationStatus]);
+  const [drawerChoice, setDrawerChoice] = useState<{ status?: string; open: boolean }>({ open: true });
+  const escalationOpen =
+    drawerChoice.status === escalationStatus ? drawerChoice.open : escalationStatus !== "CONNECTED";
   const [editing, setEditing] = useState(false);
   const [whatsapp, setWhatsApp] = useState<WhatsAppStatus | null>(null);
   const [form, setForm] = useState(() => briefingFromSnapshot(initialSnapshot));
@@ -638,7 +637,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
               <button
                 type="button"
                 className="drawer-toggle"
-                onClick={() => setEscalationOpen((open) => !open)}
+                onClick={() => setDrawerChoice({ status: escalationStatus, open: !escalationOpen })}
                 aria-expanded={escalationOpen}
                 aria-label={escalationOpen ? "Minimise escalation" : "Expand escalation"}
                 title={escalationOpen ? "Minimise" : "Expand"}
