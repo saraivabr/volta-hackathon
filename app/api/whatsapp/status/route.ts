@@ -2,7 +2,22 @@ import QRCode from "qrcode";
 import { getWaCallsStatus, isWaCallsConfigured, pairWaCallsSession } from "@/lib/providers/wacalls";
 import { requireOperator } from "@/lib/server/auth";
 
+// Each action fans out to Supabase and the voice service. The platform default
+// is far too short for that, and a killed function reaches the browser as an
+// opaque "Failed to fetch" rather than an error anyone can act on.
+export const maxDuration = 60;
+
 export const dynamic = "force-dynamic";
+
+// An expired session is not a service outage; reporting it as one sent the last
+// diagnosis chasing the voice relay instead of the cookie.
+function statusError(error: unknown) {
+  const unauthorized = error instanceof Error && error.message === "UNAUTHORIZED";
+  return Response.json(
+    { error: unauthorized ? "Unauthorized" : String(error) },
+    { status: unauthorized ? 401 : 503 },
+  );
+}
 
 async function responseForStatus(repair = false) {
   if (!isWaCallsConfigured()) {
@@ -28,7 +43,7 @@ export async function GET() {
     await requireOperator();
     return await responseForStatus();
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 503 });
+    return statusError(error);
   }
 }
 
@@ -37,6 +52,6 @@ export async function POST() {
     await requireOperator();
     return await responseForStatus(true);
   } catch (error) {
-    return Response.json({ error: String(error) }, { status: 503 });
+    return statusError(error);
   }
 }

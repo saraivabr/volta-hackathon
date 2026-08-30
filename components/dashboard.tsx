@@ -101,6 +101,20 @@ function briefingFromSnapshot(snapshot: OperationSnapshot) {
   };
 }
 
+// A dropped request surfaces as TypeError("Failed to fetch"), which tells the
+// operator nothing. Name the two cases that actually happen so the next failure
+// is diagnosable from the screen.
+async function request(input: string, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, { ...init, signal: AbortSignal.timeout(70_000) });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "TimeoutError") {
+      throw new Error("The server did not answer in time. The call may still be starting — reload before retrying.");
+    }
+    throw new Error("Could not reach the server. Check the connection and try again.");
+  }
+}
+
 export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnapshot }) {
   const router = useRouter();
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -164,7 +178,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
   }, [whatsapp?.paired]);
 
   async function repairWhatsApp() {
-    const response = await fetch("/api/whatsapp/status", { method: "POST" });
+    const response = await request("/api/whatsapp/status", { method: "POST" });
     const body = await response.json();
     if (!response.ok) setError(body.error ?? "WhatsApp pairing failed");
     else setWhatsApp(body.data);
@@ -174,19 +188,24 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     setBusy(action);
     setError("");
     const suffix = action === "save" ? "" : `/${action}`;
-    const response = await fetch(`/api/operations/${snapshot.operation.id}${suffix}`, {
-      method: action === "save" ? "PATCH" : method,
-      headers: payload ? { "Content-Type": "application/json" } : undefined,
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-    const body = await response.json();
-    if (!response.ok) setError(body.error ?? "Action failed");
-    else {
-      setSnapshot(body.data);
-      if (action === "reset") setForm(briefingFromSnapshot(body.data));
-      if (action === "save") setEditing(false);
+    try {
+      const response = await request(`/api/operations/${snapshot.operation.id}${suffix}`, {
+        method: action === "save" ? "PATCH" : method,
+        headers: payload ? { "Content-Type": "application/json" } : undefined,
+        body: payload ? JSON.stringify(payload) : undefined,
+      });
+      const body = await response.json();
+      if (!response.ok) setError(body.error ?? "Action failed");
+      else {
+        setSnapshot(body.data);
+        if (action === "reset") setForm(briefingFromSnapshot(body.data));
+        if (action === "save") setEditing(false);
+      }
+    } catch (errorValue) {
+      setError(errorValue instanceof Error ? errorValue.message : "Action failed");
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
   }
 
   function briefingPayload() {
@@ -245,7 +264,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
     setBusy(startCalls ? "delegate" : "save");
     setError("");
     try {
-      const saveResponse = await fetch(`/api/operations/${snapshot.operation.id}`, {
+      const saveResponse = await request(`/api/operations/${snapshot.operation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -258,7 +277,7 @@ export function Dashboard({ initialSnapshot }: { initialSnapshot: OperationSnaps
         return;
       }
 
-      const scanResponse = await fetch(`/api/operations/${snapshot.operation.id}/scan`, { method: "POST" });
+      const scanResponse = await request(`/api/operations/${snapshot.operation.id}/scan`, { method: "POST" });
       const scanned = await scanResponse.json();
       if (!scanResponse.ok) throw new Error(scanned.error ?? "Calls could not be started");
       setSnapshot(scanned.data);

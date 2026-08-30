@@ -3,6 +3,11 @@ import { getStore } from "@/lib/store";
 import { apiError, ok } from "@/lib/server/http";
 import { requireOperator } from "@/lib/server/auth";
 
+// Each action fans out to Supabase and the voice service. The platform default
+// is far too short for that, and a killed function reaches the browser as an
+// opaque "Failed to fetch" rather than an error anyone can act on.
+export const maxDuration = 60;
+
 const patchSchema = z.object({
   reference: z.string().trim().min(2).max(40).optional(),
   customer: z.string().trim().min(2).max(120).optional(),
