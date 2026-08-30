@@ -306,7 +306,7 @@ td span { display: block; color: var(--muted); font-size: var(--fs-label); margi
 .form-error { color: var(--red); font-size: var(--fs-caption); }
 .login-footnote { text-align: center; color: #5d665f; font: var(--fs-micro) var(--font-mono); margin-top: var(--space-5); text-transform: uppercase; letter-spacing: .08em; }
 
-@media (max-width: 1250px) {
+@media (max-width: 1400px) {
   .dashboard-grid { grid-template-columns: 330px 1fr; }
   .ledger-panel { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); }
   .ledger-list { max-height: 240px; }
@@ -326,4 +326,32 @@ td span { display: block; color: var(--muted); font-size: var(--fs-label); margi
   .login-panel { border-left: 0; border-top: 1px solid var(--line); padding: var(--space-8) var(--space-7); }
   .escalation-drawer { width: calc(100vw - 24px); right: 12px; bottom: 12px; }
   .whatsapp-connection { margin: var(--space-4); align-items: flex-start; flex-direction: column; }
+}
+
+/* A control room is read at a glance, not scrolled. Pinning the room to the
+   viewport and giving each column its own scroll keeps the whole briefing on
+   screen — the stage projector is 3072x960, and the page was 1829px tall, so
+   half of it fell below the fold with nobody able to scroll it. */
+.control-room { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.dashboard-grid { flex: 1; min-height: 0; }
+.dashboard-grid > * { min-height: 0; overflow-y: auto; }
+.main-stage { overflow-y: auto; }
+
+/* Very wide, very short: give the side panels the extra width instead of
+   stretching the centre to 2400px, and raise the type so the back row can
+   read it. */
+@media (min-width: 2200px) {
+  :root {
+    --fs-micro: 12px; --fs-label: 14px; --fs-caption: 15px;
+    --fs-body: 17px; --fs-md: 19px; --fs-lg: 24px; --fs-xl: 30px; --fs-2xl: 38px;
+  }
+  .dashboard-grid { grid-template-columns: 520px minmax(0, 1fr) 600px; }
+  .topbar { grid-template-columns: 320px 1fr auto; height: 74px; }
+}
+
+/* A short viewport of any width: stop the fixed panel heights from adding up
+   past the screen. */
+@media (max-height: 900px) {
+  .transcript-stream, .decision-stream { max-height: 220px; }
+  .carrier-card { min-height: 168px; }
 }
